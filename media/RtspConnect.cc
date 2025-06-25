@@ -14,50 +14,71 @@ RtspConnect::~RtspConnect(){
 
 }
 void RtspConnect::handleRtspConnect(){
-    std::string rBuf = _connPtr->reciveRtspRequest();
-    if (rBuf.empty()) {
-        std::cout << "failed to recv data from client" << std::endl;
-        return;
+    while (true) {
+        std::string rBuf = _connPtr->reciveRtspRequest();
+        if (rBuf.empty()) {
+            // 没有完整请求，跳出或等待
+            break;
+        }
+        std::cout << "recv data from client:\n" << rBuf << std::endl;
+
+        // 1. 解析请求
+        parseRequest(rBuf);
+
+        // 2. 路由处理
+        if (method == "OPTIONS") {
+            handleOptions();
+        } else if (method == "DESCRIBE") {
+            handleDescribe();
+        } else if (method == "SETUP") {
+            handleSetup();
+        } else if (method == "PLAY") {
+            handlePlay();
+        } else if (method == "TEARDOWN") {
+            handleTeardown();
+        } else {
+            sendResponse("RTSP/1.0 400 Bad Request\r\nCSeq: " + std::to_string(CSeq) + "\r\n\r\n");
+        }
     }
-
-    std::cout << "recv data from client:\n" << rBuf << std::endl;
-
-    // 1. 解析请求
-    parseRequest(rBuf);
-
-    // 2. 路由处理
-    if (method == "OPTIONS") {
-        handleOptions();
-    } else if (method == "DESCRIBE") {
-        handleDescribe();
-    } else if (method == "SETUP") {
-        handleSetup();
-    } else if (method == "PLAY") {
-        handlePlay();
-    } else if (method == "TEARDOWN") {
-        handleTeardown();
-    } else {
-        sendResponse("RTSP/1.0 400 Bad Request\r\nCSeq: " + std::to_string(CSeq) + "\r\n\r\n");
-    }
-
-    // 清空状态
-    // method.clear(); url.clear(); version.clear(); CSeq = 0; transport.clear();
 
 }
 void RtspConnect::parseRequest(const std::string& rBuf) {
     std::istringstream iss(rBuf);
     std::string line;
+    std::vector<std::string> headers;
+    std::string lastHeader;
+
     while (std::getline(iss, line)) {
-        if (line.find("RTSP/") != std::string::npos) {
-            std::istringstream lss(line);
-            lss >> method >> url >> version;
-        } else if (line.find("CSeq") != std::string::npos || line.find("CSEQ") != std::string::npos) {
-            size_t pos = line.find(":");
-            if (pos != std::string::npos)
-                CSeq = std::stoi(line.substr(pos + 1));
-        } else if (line.find("Transport") != std::string::npos) {
-            transport = line;
+        // 去掉行尾的 \r
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
         }
+        // 如果是空行，header结束
+        if (line.empty()) break;
+
+        // 判断是否为折行（以空格或Tab开头）
+        if (!line.empty() && (line[0] == ' ' || line[0] == '\t')) {
+            if (!headers.empty()) {
+                headers.back() += line;
+            }
+        } else {
+            headers.push_back(line);
+        }
+    }
+    // 处理请求行和各个header
+    for (size_t i = 0; i < headers.size(); ++i) {
+        const std::string& h = headers[i];
+        if (i == 0 && h.find("RTSP/") != std::string::npos) {
+            std::istringstream lss(h);
+            lss >> method >> url >> version;
+        } else if (h.find("CSeq") != std::string::npos || h.find("CSEQ") != std::string::npos) {
+            size_t pos = h.find(":");
+            if (pos != std::string::npos)
+                CSeq = std::stoi(h.substr(pos + 1));
+        } else if (h.find("Transport") != std::string::npos) {
+            transport = h;
+        }
+        // 你可以继续处理其他header
     }
 }
 void RtspConnect::handleOptions() {
@@ -88,7 +109,7 @@ void RtspConnect::handleDescribe() {
                       "m=audio 0 RTP/AVP 97\r\n"
                       "a=rtpmap:97 MPEG4-GENERIC/44100/2\r\n"
                       "a=fmtp:97 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1210;\r\n"
-                      "a=control:track1\r\n";
+                      "a=control:track1\r\n\r\n";
 
     std::string response = "RTSP/1.0 200 OK\r\n"
                            "CSeq: " + std::to_string(CSeq) + "\r\n"

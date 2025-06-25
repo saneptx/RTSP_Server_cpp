@@ -36,6 +36,7 @@ void EventLoop::loop(){
     }
 }
 void EventLoop::unloop(){
+    cout<<"unloop()"<<endl;
     _isLooping = false;
 }
 

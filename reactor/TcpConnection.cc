@@ -31,16 +31,29 @@ void TcpConnection::sendInLoop(const string &msg){
 }
 
 string TcpConnection::recive(){
-    char buff[65535] = {0};
+    char buff[1024*1024] = {0};
     _sockIO.readLine(buff,sizeof(buff));
 
     return string(buff);
 }
 string TcpConnection::reciveRtspRequest(){
-    char buff[65535] = {0};
-    _sockIO.readCRLFCRLF(buff,sizeof(buff));
+    char temp[4096];
+    int n = ::recv(_sock.fd(), temp, sizeof(temp), 0);
+    if (n <= 0) {
+        return "";
+    }
+    _recvBuffer.append(temp, n);//每次从 socket 读取数据，append 到 _recvBuffer。
 
-    return string(buff);
+    // 查找所有完整的 RTSP 请求
+    size_t pos = _recvBuffer.find("\r\n\r\n");//循环查找消息分隔符（RTSP 协议用 \r\n\r\n 作为 header 结束标志）。
+    if (pos != std::string::npos) {
+        std::string oneRequest = _recvBuffer.substr(0, pos + 4);
+        _recvBuffer.erase(0, pos + 4);
+        return oneRequest;//每找到一个分隔符，就说明有一条完整的 RTSP 消息，把它从 _recvBuffer 里取出来，交给上层处理。
+        //剩下的数据（可能是不完整的下一条消息），继续留在 _recvBuffer，等待下次数据到来再拼接。
+    }
+    // 没有完整请求，返回空
+    return "";
 }
 string TcpConnection::toString(){
     ostringstream oss;

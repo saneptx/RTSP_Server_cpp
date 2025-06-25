@@ -8,7 +8,6 @@ public:
     ~SocketIO();
     int readn(char *buf,int len);
     int readLine(char *buf,int len);
-    int readCRLFCRLF(char *buf, int len);
     int writen(const char *buf,int len);
     
 private:
