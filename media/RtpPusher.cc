@@ -99,7 +99,7 @@ void RtpPusher::sendH264Frame(const std::vector<uint8_t>& nalu) {
         packet.insert(packet.end(), nalu.begin(), nalu.end());
         uint8_t prefix[] = { '$', 0, uint8_t(packet.size() >> 8), uint8_t(packet.size() & 0xFF) };
         // std::cout << "[RtpPusher] Send H264 RTP packet, size=" << packet.size() << ", seq=" << _seqVideo-1 << std::endl;
-        _conn->send(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
+        _conn->sendInLoop(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
     } else {
         uint8_t nal_header = nalu[0];
         uint8_t fu_ind = (nal_header & 0xE0) | 28;
@@ -120,7 +120,7 @@ void RtpPusher::sendH264Frame(const std::vector<uint8_t>& nalu) {
 
             uint8_t prefix[] = { '$', 0, uint8_t(packet.size() >> 8), uint8_t(packet.size() & 0xFF) };
             // std::cout << "[RtpPusher] Send H264 RTP FU-A packet, size=" << packet.size() << ", seq=" << _seqVideo-1 << (isLast ? " [LAST]" : "") << std::endl;
-            _conn->send(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
+            _conn->sendInLoop(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
 
             pos += len;
             fu_hdr &= ~0x80; // 清除 Start bit
@@ -150,5 +150,5 @@ void RtpPusher::sendAacFrame(const std::vector<uint8_t>& aac) {
 
     uint8_t prefix[] = { '$', 2, uint8_t(packet.size() >> 8), uint8_t(packet.size() & 0xFF) };
     // std::cout << "[RtpPusher] Send AAC RTP packet, size=" << packet.size() << ", seq=" << _seqAudio-1 << std::endl;
-    _conn->send(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
+    _conn->sendInLoop(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
 }
