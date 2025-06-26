@@ -33,6 +33,7 @@ void TcpServer::onNewConnection(const TcpConnectionPtr &connPtr){
 void TcpServer::onMessage(const TcpConnectionPtr &connPtr){
     auto rtspConn = connPtr->getRtspConnect();
     if (rtspConn) {
+        rtspConn->handleRtspConnect();
         _pool.addTask([rtspConn](){
             rtspConn->handleRtspConnect();
         });

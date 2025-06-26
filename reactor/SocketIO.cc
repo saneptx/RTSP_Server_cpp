@@ -68,20 +68,26 @@ int SocketIO::readLine(char *buf,int len){
     *pstr = '\0';
     return total - left;
 }
+
 int SocketIO::writen(const char *buf,int len){
     int left = len;
     const char *pstr = buf;
     int ret = 0;
     while(left > 0){
-        ret = write(_fd,pstr,left);
-        if(-1 == ret && errno == EINTR){
-            continue;
-        }else if(-1 == ret){
-            perror("writen error -1");
-            return -1;
-        }else if(0 == ret){
-            break;
-        }else{
+        ret = write(_fd, pstr, left);
+        if(ret == -1){
+            if(errno == EINTR){
+                continue;
+            } else if(errno == EAGAIN || errno == EWOULDBLOCK) {
+                // 非阻塞写，暂时写不了
+                return len - left; // 或者返回 0
+            } else {
+                perror("writen error -1");
+                return -1;
+            }
+        } else if(ret == 0){
+            break; // 理论上 write 不会返回 0，除非 fd 非常异常
+        } else {
             pstr += ret;
             left -= ret;
         }

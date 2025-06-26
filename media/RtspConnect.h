@@ -4,6 +4,9 @@
 #include <string>
 #include <unordered_map>
 #include <mutex>
+#include "RtpPusher.h"
+#include "H264FileReader.h"
+#include "AacFileReader.h"
 using std::string;
 using std::mutex;
 using std::unordered_map;
@@ -39,6 +42,9 @@ private:
     static unordered_map<std::string, RtspSession> _sessionMap;
     static mutex _sessionMutex;
     string currentSessionId;
+    std::shared_ptr<H264FileReader> _h264FileReaderPtr;
+    std::shared_ptr<AacFileReader> _aacFileReaderPtr;
+    RtpPusher _rtspPusher;
 };
 
 

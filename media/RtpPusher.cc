@@ -10,16 +10,17 @@ RtpPusher::RtpPusher(std::shared_ptr<TcpConnection> conn,
     std::cout << "[RtpPusher] constructed, this=" << this << std::endl;
 }
 
-// void RtpPusher::start(std::function<void(std::function<void()>)> addTask) {
-//     _running = true;
-//     std::cout << "[RtpPusher] start streaming..." << std::endl;
-//     addTask([this]() { sendLoop(); });
-// }
+void RtpPusher::start() {
+    _running = true;
+    std::cout << "[RtpPusher] start streaming..." << std::endl;
+    _thread = std::thread(&RtpPusher::sendLoop, this);
+}
 
-// void RtpPusher::stop() {
-//     _running = false;
-//     std::cout << "[RtpPusher] stop streaming..." << std::endl;
-// }
+void RtpPusher::stop() {
+    _running = false;
+    std::cout << "[RtpPusher] stop streaming..." << std::endl;
+    _thread.join();
+}
 
 void RtpPusher::sendLoop() {
     std::cout << "[RtpPusher] sendLoop started, this=" << this << std::endl;
@@ -30,13 +31,13 @@ void RtpPusher::sendLoop() {
     const int videoInterval = 1000 / 25;     // 25fps → 40ms
     const int audioInterval = 1000 * 1024 / 48000; // AAC帧间隔 ≈ 21.3ms
 
-    while (!_conn->isClosed()) {
+    while (!_conn->isClosed()&&_running) {
         auto now = std::chrono::steady_clock::now();
 
         if (_videoReader && std::chrono::duration_cast<std::chrono::milliseconds>(now - lastVideoTime).count() >= videoInterval) {
             std::vector<uint8_t> nalu;
             if (_videoReader->readFrame(nalu)==ReadStatus::Ok) {
-                std::cout << "[RtpPusher] Read H264 frame, size=" << nalu.size() << std::endl;
+                // std::cout << "[RtpPusher] Read H264 frame, size=" << nalu.size() << std::endl;
                 sendH264Frame(nalu);
                 _timestampVideo += 3600;
             } else if(_videoReader->readFrame(nalu)==ReadStatus::Eof){
@@ -52,7 +53,7 @@ void RtpPusher::sendLoop() {
         if (_audioReader && std::chrono::duration_cast<std::chrono::milliseconds>(now - lastAudioTime).count() >= audioInterval) {
             std::vector<uint8_t> aac;
             if (_audioReader->readFrame(aac)==ReadStatus::Ok) {
-                std::cout << "[RtpPusher] Read AAC frame, size=" << aac.size() << std::endl;
+                // std::cout << "[RtpPusher] Read AAC frame, size=" << aac.size() << std::endl;
                 sendAacFrame(aac);
                 _timestampAudio += 1024 * 90000 / 48000; // → 1920
             } else if(_audioReader->readFrame(aac)==ReadStatus::Eof){
@@ -97,8 +98,8 @@ void RtpPusher::sendH264Frame(const std::vector<uint8_t>& nalu) {
         std::vector<uint8_t> packet = header;
         packet.insert(packet.end(), nalu.begin(), nalu.end());
         uint8_t prefix[] = { '$', 0, uint8_t(packet.size() >> 8), uint8_t(packet.size() & 0xFF) };
-        std::cout << "[RtpPusher] Send H264 RTP packet, size=" << packet.size() << ", seq=" << _seqVideo-1 << std::endl;
-        _conn->sendInLoop(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
+        // std::cout << "[RtpPusher] Send H264 RTP packet, size=" << packet.size() << ", seq=" << _seqVideo-1 << std::endl;
+        _conn->send(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
     } else {
         uint8_t nal_header = nalu[0];
         uint8_t fu_ind = (nal_header & 0xE0) | 28;
@@ -118,8 +119,8 @@ void RtpPusher::sendH264Frame(const std::vector<uint8_t>& nalu) {
             packet.insert(packet.end(), payload.begin(), payload.end());
 
             uint8_t prefix[] = { '$', 0, uint8_t(packet.size() >> 8), uint8_t(packet.size() & 0xFF) };
-            std::cout << "[RtpPusher] Send H264 RTP FU-A packet, size=" << packet.size() << ", seq=" << _seqVideo-1 << (isLast ? " [LAST]" : "") << std::endl;
-            _conn->sendInLoop(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
+            // std::cout << "[RtpPusher] Send H264 RTP FU-A packet, size=" << packet.size() << ", seq=" << _seqVideo-1 << (isLast ? " [LAST]" : "") << std::endl;
+            _conn->send(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
 
             pos += len;
             fu_hdr &= ~0x80; // 清除 Start bit
@@ -148,6 +149,6 @@ void RtpPusher::sendAacFrame(const std::vector<uint8_t>& aac) {
     packet.insert(packet.end(), payload.begin(), payload.end());
 
     uint8_t prefix[] = { '$', 2, uint8_t(packet.size() >> 8), uint8_t(packet.size() & 0xFF) };
-    std::cout << "[RtpPusher] Send AAC RTP packet, size=" << packet.size() << ", seq=" << _seqAudio-1 << std::endl;
-    _conn->sendInLoop(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
+    // std::cout << "[RtpPusher] Send AAC RTP packet, size=" << packet.size() << ", seq=" << _seqAudio-1 << std::endl;
+    _conn->send(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
 }

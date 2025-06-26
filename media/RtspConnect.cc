@@ -1,10 +1,8 @@
 #include "RtspConnect.h"
-#include "H264FileReader.h"
-#include "AacFileReader.h"
-#include "RtpPusher.h"
 #include <iostream>
 #include <sstream>
 #include <atomic>
+#include <thread>
 using std::cout;
 using std::endl;
 
@@ -20,6 +18,9 @@ RtspConnect::RtspConnect(TcpConnectionPtr connPtr)
 ,CSeq(0)
 ,transport("")
 ,currentSessionId("")
+,_h264FileReaderPtr(std::make_shared<H264FileReader>("data/1.h264"))
+,_aacFileReaderPtr(std::make_shared<AacFileReader>("data/1.aac"))
+,_rtspPusher(_connPtr,_h264FileReaderPtr,_aacFileReaderPtr)
 {
     std::cout << "[RtspConnect] constructed, this=" << this << std::endl;
 }
@@ -27,7 +28,7 @@ RtspConnect::~RtspConnect(){
     std::cout << "[RtspConnect] destructed, this=" << this << std::endl;
 }
 void RtspConnect::handleRtspConnect(){
- 
+
     std::string rBuf = _connPtr->reciveRtspRequest();
     if (rBuf.empty()) {
         // 没有完整请求，跳出或等待
@@ -65,6 +66,7 @@ void RtspConnect::releaseSession() {
         }
         currentSessionId.clear();
     }
+    _rtspPusher.stop();
 }
 
 void RtspConnect::parseRequest(const std::string& rBuf) {
@@ -193,10 +195,7 @@ void RtspConnect::handlePlay() {
                            "CSeq: " + std::to_string(CSeq) + "\r\n"
                            "Session: " + currentSessionId + "\r\n\r\n";
     sendResponse(response);
-    auto videoReader = std::make_shared<H264FileReader>("data/1.aac");
-    auto audioReader = std::make_shared<AacFileReader>("data/1.aac");
-    auto pusher = std::make_shared<RtpPusher>(_connPtr, videoReader, audioReader);
-    pusher->sendLoop();
+    _rtspPusher.start();
 }
 void RtspConnect::handleTeardown() {
     std::lock_guard<std::mutex> lock(_sessionMutex);
@@ -208,6 +207,7 @@ void RtspConnect::handleTeardown() {
     std::string response = "RTSP/1.0 200 OK\r\n"
                            "CSeq: " + std::to_string(CSeq) + "\r\n\r\n";
     sendResponse(response);
+    _rtspPusher.stop();
 }
 void RtspConnect::sendResponse(const std::string& response) {
     _connPtr->sendInLoop(response);
