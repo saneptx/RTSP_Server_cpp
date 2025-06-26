@@ -2,14 +2,25 @@
 #define __RTSPCONNECT_H__
 #include "../reactor/TcpConnection.h"
 #include <string>
+#include <unordered_map>
+#include <mutex>
 using std::string;
+using std::mutex;
+using std::unordered_map;
 
+
+struct RtspSession {
+    std::string sessionId;
+    bool isPlaying = false;
+    string clientIP;
+    time_t lastActive = time(nullptr);
+};
 class RtspConnect{
 public:
     RtspConnect(TcpConnectionPtr connPtr);
     ~RtspConnect();
     void handleRtspConnect();
-
+    void releaseSession();
 private:
     void parseRequest(const std::string& rBuf);
     void handleOptions();
@@ -18,11 +29,16 @@ private:
     void handlePlay();
     void handleTeardown();
     void sendResponse(const std::string& response);
+    string generateSessionId();
     TcpConnectionPtr _connPtr;
     string method,url,version;
-    int CSeq = 0;
+    int CSeq;
     string transport;
-    string session = "1185d20035702ca";
+    // sessionID -> Session 映射
+    // _sessionMap 和 _sessionMutex 是静态的，因为多个 RtspConnect 实例要共享会话池。
+    static unordered_map<std::string, RtspSession> _sessionMap;
+    static mutex _sessionMutex;
+    string currentSessionId;
 };
 
 

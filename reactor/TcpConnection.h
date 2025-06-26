@@ -11,7 +11,7 @@
 using std::shared_ptr;
 using std::function;
 
-
+class RtspConnect;
 class EventLoop;
 class TcpConnection
 :public std::enable_shared_from_this<TcpConnection>{
@@ -37,9 +37,12 @@ public:
     void handleNewConnectionCallback();
     void handleMessageCallback();
     void handleCloseCallback();
-private:
+
     InetAddress getLocalAddr();
     InetAddress getPeerAddr();
+
+    void setRtspConnect(std::shared_ptr<RtspConnect> conn);
+    std::shared_ptr<RtspConnect> getRtspConnect();
 private:
     EventLoop *_loop;
     SocketIO _sockIO;
@@ -54,6 +57,7 @@ private:
     */
     std::string _recvBuffer;//持久化buffer
 
+    std::shared_ptr<RtspConnect> _rtspConn;
     TcpConnectionCallback _onNewConnectionCb;
     TcpConnectionCallback _onMessageCb;
     TcpConnectionCallback _onCloseCb;

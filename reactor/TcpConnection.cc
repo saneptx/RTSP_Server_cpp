@@ -37,9 +37,20 @@ string TcpConnection::recive(){
     return string(buff);
 }
 string TcpConnection::reciveRtspRequest(){
+    _sock.setNoblock();
     char temp[4096];
     int n = ::recv(_sock.fd(), temp, sizeof(temp), 0);
-    if (n <= 0) {
+    if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // 非阻塞下无数据可读，直接返回空
+            return "";
+        } else {
+            // 其他错误
+            perror("recv");
+            return "";
+        }
+    } else if (n == 0) {
+        // 对端关闭
         return "";
     }
     _recvBuffer.append(temp, n);//每次从 socket 读取数据，append 到 _recvBuffer。
@@ -98,6 +109,9 @@ bool TcpConnection::isClosed() const{
 
     return (0 == ret);
 }
+
+void TcpConnection::setRtspConnect(std::shared_ptr<RtspConnect> conn) { _rtspConn = conn; }
+std::shared_ptr<RtspConnect> TcpConnection::getRtspConnect() { return _rtspConn; }
 
 void TcpConnection::setNewConnectionCallback(const TcpConnectionCallback &cb){
     _onNewConnectionCb = cb;

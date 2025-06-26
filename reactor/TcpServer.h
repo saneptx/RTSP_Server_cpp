@@ -7,16 +7,6 @@
 #include "TcpConnection.h"
 #include "../media/RtspConnect.h"
 
-class MyTask{
-public:
-    MyTask(TcpConnectionPtr connPtr);
-    void process();
-private:
-    TcpConnectionPtr _connPtr;
-    RtspConnect _rtspConn;
-};
-
-
 class TcpServer{
 public:
     TcpServer(const string &ip,unsigned short port,size_t thread_num,size_t queue_size);

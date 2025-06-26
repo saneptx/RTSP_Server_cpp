@@ -10,6 +10,7 @@ public:
     explicit Socket(int fd);
     ~Socket();
     int fd() const;
+    void setNoblock();
 private :
     int _fd;
 };

@@ -4,7 +4,8 @@
 
 
 void test(){
-    TcpServer server("172.23.181.53",8888,4,10);
+    std::cout << "Server starting..." << std::endl;
+    TcpServer server("192.168.111.128",8888, 4, 10);
     server.start();
 }
 int main(){

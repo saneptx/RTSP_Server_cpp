@@ -1,14 +1,6 @@
 #include "TcpServer.h"
 #include "TcpConnection.h"
 
-MyTask::MyTask(TcpConnectionPtr connPtr)
-:_connPtr(connPtr)
-,_rtspConn(_connPtr){
-
-}
-void MyTask::process(){
-    _rtspConn.handleRtspConnect();
-}
 
 TcpServer::TcpServer(const string &ip,unsigned short port,size_t thread_num,size_t queue_size)
 :_acceptor(ip,port)
@@ -35,13 +27,21 @@ void TcpServer::stop(){
 
 void TcpServer::onNewConnection(const TcpConnectionPtr &connPtr){
     cout << connPtr->toString() << " has connected!"<< endl;
+    auto rtspConn = std::make_shared<RtspConnect>(connPtr);
+    connPtr->setRtspConnect(rtspConn);
 }
 void TcpServer::onMessage(const TcpConnectionPtr &connPtr){
-    // string msg = connPtr->recive();
-    // cout<<">>recv client msg = "<< msg;
-    MyTask task(connPtr);
-    _pool.addTask(std::bind(&MyTask::process,task));
+    auto rtspConn = connPtr->getRtspConnect();
+    if (rtspConn) {
+        _pool.addTask([rtspConn](){
+            rtspConn->handleRtspConnect();
+        });
+    }
 }
 void TcpServer::onClose(const TcpConnectionPtr &connPtr){
     cout << connPtr->toString() << " has closed!"<< endl;
+    auto rtspConn = connPtr->getRtspConnect();
+    if (rtspConn) {
+        rtspConn->releaseSession();
+    }
 }
