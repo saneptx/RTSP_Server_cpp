@@ -43,6 +43,10 @@ public:
 
     void setRtspConnect(std::shared_ptr<RtspConnect> conn);
     std::shared_ptr<RtspConnect> getRtspConnect();
+
+    TimerId addOneTimer(int delaySec, TimerCallback &&cb);
+    TimerId addPeriodicTimer(int delaySec, int intervalSec, TimerCallback &&cb);
+    void removeTimer(TimerId timerId);
 private:
     EventLoop *_loop;
     SocketIO _sockIO;

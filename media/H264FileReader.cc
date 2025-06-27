@@ -19,11 +19,9 @@ bool H264FileReader::isStartCode(const uint8_t* p, size_t len) {
 ReadStatus H264FileReader::readFrame(std::vector<uint8_t>& outFrame) {
     if (!_file.is_open()){
         std::cout<<"H.264 file open failed!"<<std::endl;
-        //文件打开失败返回-1
         return ReadStatus::FileError;
     }else if(_file.eof()){
         std::cout<<"H.264 file read eof!"<<std::endl;
-        //文件读取完毕返回0
         return ReadStatus::Eof;
     }
 

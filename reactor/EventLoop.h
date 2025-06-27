@@ -6,6 +6,8 @@
 #include <memory>
 #include <functional>
 #include <mutex>
+#include "Eventor.h"
+#include "TimerManager.h"
 
 using std::vector;
 using std::map;
@@ -18,6 +20,8 @@ class TcpConnection;
 using TcpConnectionPtr = shared_ptr<TcpConnection>;
 using TcpConnectionCallback = function<void(const TcpConnectionPtr &)>;
 using Functor = function<void()>;
+using TimerCallback = std::function<void()>;
+using TimerId = uint64_t;
 
 class EventLoop{
 public:
@@ -30,8 +34,9 @@ public:
     void setNewConnectionCallback(TcpConnectionCallback &&cb);
     void setMessageCallback(TcpConnectionCallback &&cb);
     void setCloseCallback(TcpConnectionCallback &&cb);
-
-    void wakeup();
+    TimerId addOneTimer(int delaySec, TimerCallback &&cb);
+    TimerId addPeriodicTimer(int delaySec, int intervalSec, TimerCallback &&cb);
+    void removeTimer(TimerId timerId);
     void runInLoop(Functor &&cb);
 
 private:
@@ -42,9 +47,6 @@ private:
     void delEpollReadFd(int fd);
     int createEpollFd();
 
-    void handleRead();
-    void doPenddingFunctors();
-    int createEventFd();
 
 private:
     int _epfd;
@@ -57,9 +59,8 @@ private:
     TcpConnectionCallback _onMessageCb;
     TcpConnectionCallback _onCloseCb;
 
-    int _evtfd;//用于通信的文件描述符
-    vector<Functor> _pendings;//待执行的任务
-    mutex _mutex;//互斥锁访问_pendings队列
+    Eventor _eventor;
+    TimerManager _timeMgr;
 };
 
 #endif

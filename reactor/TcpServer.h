@@ -23,7 +23,7 @@ public:
 private:
     Acceptor _acceptor;
     EventLoop _loop;
-    ThreadPool _pool;
+    std::shared_ptr<ThreadPool> _pool;
 };
 
 #endif

@@ -1,76 +1,114 @@
 #include "RtpPusher.h"
-#include <thread>
+#include <functional>
 #include <chrono>
 #include <iostream>
 
 RtpPusher::RtpPusher(std::shared_ptr<TcpConnection> conn,
+                     std::shared_ptr<ThreadPool> pool,
                      std::shared_ptr<MediaReader> videoReader,
                      std::shared_ptr<MediaReader> audioReader)
-    : _conn(conn), _videoReader(videoReader), _audioReader(audioReader) {
+    : _conn(conn),_pool(pool), _videoReader(videoReader), _audioReader(audioReader),_running(true) {
     std::cout << "[RtpPusher] constructed, this=" << this << std::endl;
 }
 
 void RtpPusher::start() {
-    _running = true;
-    std::cout << "[RtpPusher] start streaming..." << std::endl;
-    _thread = std::thread(&RtpPusher::sendLoop, this);
+    _timeid1 = _conn->addPeriodicTimer(0,40,[this](){
+        if (!_running){ 
+            _conn->removeTimer(_timeid1);
+            return;
+        }
+        std::vector<uint8_t> nalu;
+        if (_videoReader->readFrame(nalu)==ReadStatus::Ok && _running) {
+            // std::cout << "[RtpPusher] Read H264 frame, size=" << nalu.size() << std::endl;
+            sendH264Frame(nalu);
+            _timestampVideo += 3600;
+        } else if(_videoReader->readFrame(nalu)==ReadStatus::Eof){
+            std::cout << "[RtpPusher] H264 Read completed." << std::endl;
+            _running = false;
+            return;
+        } else {
+            std::cout << "[RtpPusher] Read error." << std::endl;
+            _running = false;
+            return;
+        }
+    });
+    _timeid2 = _conn->addPeriodicTimer(0,21,[this](){
+        if (!_running){ 
+            _conn->removeTimer(_timeid2);
+            return;
+        }
+        std::vector<uint8_t> aac;
+        if (_audioReader->readFrame(aac)==ReadStatus::Ok && _running) {
+            // std::cout << "[RtpPusher] Read AAC frame, size=" << aac.size() << std::endl;
+            sendAacFrame(aac);
+            _timestampAudio += 1024 * 90000 / 48000; // → 1920
+        } else if(_audioReader->readFrame(aac)==ReadStatus::Eof){
+            std::cout << "[RtpPusher] AAC Read completed." << std::endl;
+            _running = false;
+            return;
+        } else{
+            std::cout << "[RtpPusher] No more AAC frame or read error." << std::endl;
+            _running = false;
+            return;
+        }
+    });
 }
 
-void RtpPusher::stop() {
+void RtpPusher::stop(){
     _running = false;
-    std::cout << "[RtpPusher] stop streaming..." << std::endl;
-    _thread.join();
+    _conn->removeTimer(_timeid1);
+    _conn->removeTimer(_timeid2);
 }
 
-void RtpPusher::sendLoop() {
-    std::cout << "[RtpPusher] sendLoop started, this=" << this << std::endl;
+// void RtpPusher::sendLoop() {
+//     std::cout << "[RtpPusher] sendLoop started, this=" << this << std::endl;
 
-    auto lastVideoTime = std::chrono::steady_clock::now();
-    auto lastAudioTime = lastVideoTime;
+//     auto lastVideoTime = std::chrono::steady_clock::now();
+//     auto lastAudioTime = lastVideoTime;
 
-    const int videoInterval = 1000 / 25;     // 25fps → 40ms
-    const int audioInterval = 1000 * 1024 / 48000; // AAC帧间隔 ≈ 21.3ms
+//     const int videoInterval = 1000 / 25;     // 25fps → 40ms
+//     const int audioInterval = 1000 * 1024 / 48000; // AAC帧间隔 ≈ 21.3ms
 
-    while (!_conn->isClosed()&&_running) {
-        auto now = std::chrono::steady_clock::now();
+//     while (!_conn->isClosed()&&_running) {
+//         auto now = std::chrono::steady_clock::now();
 
-        if (_videoReader && std::chrono::duration_cast<std::chrono::milliseconds>(now - lastVideoTime).count() >= videoInterval) {
-            std::vector<uint8_t> nalu;
-            if (_videoReader->readFrame(nalu)==ReadStatus::Ok) {
-                // std::cout << "[RtpPusher] Read H264 frame, size=" << nalu.size() << std::endl;
-                sendH264Frame(nalu);
-                _timestampVideo += 3600;
-            } else if(_videoReader->readFrame(nalu)==ReadStatus::Eof){
-                std::cout << "[RtpPusher] Read complete." << std::endl;
-                break;
-            } else {
-                std::cout << "[RtpPusher] Read error." << std::endl;
-                break;
-            }
-            lastVideoTime = now;
-        }
+//         if (_videoReader && std::chrono::duration_cast<std::chrono::milliseconds>(now - lastVideoTime).count() >= videoInterval) {
+//             std::vector<uint8_t> nalu;
+//             if (_videoReader->readFrame(nalu)==ReadStatus::Ok) {
+//                 // std::cout << "[RtpPusher] Read H264 frame, size=" << nalu.size() << std::endl;
+//                 sendH264Frame(nalu);
+//                 _timestampVideo += 3600;
+//             } else if(_videoReader->readFrame(nalu)==ReadStatus::Eof){
+//                 std::cout << "[RtpPusher] Read complete." << std::endl;
+//                 break;
+//             } else {
+//                 std::cout << "[RtpPusher] Read error." << std::endl;
+//                 break;
+//             }
+//             lastVideoTime = now;
+//         }
 
-        if (_audioReader && std::chrono::duration_cast<std::chrono::milliseconds>(now - lastAudioTime).count() >= audioInterval) {
-            std::vector<uint8_t> aac;
-            if (_audioReader->readFrame(aac)==ReadStatus::Ok) {
-                // std::cout << "[RtpPusher] Read AAC frame, size=" << aac.size() << std::endl;
-                sendAacFrame(aac);
-                _timestampAudio += 1024 * 90000 / 48000; // → 1920
-            } else if(_audioReader->readFrame(aac)==ReadStatus::Eof){
-                std::cout << "[RtpPusher] Read complete." << std::endl;
-                break;
-            } else{
-                std::cout << "[RtpPusher] No more AAC frame or read error." << std::endl;
-                break;
-            }
-            lastAudioTime = now;
-        }
+//         if (_audioReader && std::chrono::duration_cast<std::chrono::milliseconds>(now - lastAudioTime).count() >= audioInterval) {
+//             std::vector<uint8_t> aac;
+//             if (_audioReader->readFrame(aac)==ReadStatus::Ok) {
+//                 // std::cout << "[RtpPusher] Read AAC frame, size=" << aac.size() << std::endl;
+//                 sendAacFrame(aac);
+//                 _timestampAudio += 1024 * 90000 / 48000; // → 1920
+//             } else if(_audioReader->readFrame(aac)==ReadStatus::Eof){
+//                 std::cout << "[RtpPusher] Read complete." << std::endl;
+//                 break;
+//             } else{
+//                 std::cout << "[RtpPusher] No more AAC frame or read error." << std::endl;
+//                 break;
+//             }
+//             lastAudioTime = now;
+//         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1)); // 更细粒度休眠
-    }
+//         std::this_thread::sleep_for(std::chrono::milliseconds(1)); // 更细粒度休眠
+//     }
 
-    std::cout << "[RtpPusher] sendLoop exited, this=" << this << std::endl;
-}
+//     std::cout << "[RtpPusher] sendLoop exited, this=" << this << std::endl;
+// }
 
 
 static std::vector<uint8_t> buildRtpHeader(uint16_t seq, uint32_t timestamp, uint32_t ssrc, uint8_t pt, bool marker) {

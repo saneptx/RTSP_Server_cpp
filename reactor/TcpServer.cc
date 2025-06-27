@@ -5,7 +5,7 @@
 TcpServer::TcpServer(const string &ip,unsigned short port,size_t thread_num,size_t queue_size)
 :_acceptor(ip,port)
 ,_loop(_acceptor)
-,_pool(thread_num,queue_size){
+,_pool(std::make_shared<ThreadPool>(thread_num, queue_size)){
 
 }
 TcpServer::~TcpServer(){
@@ -13,7 +13,7 @@ TcpServer::~TcpServer(){
 }
 
 void TcpServer::start(){
-    _pool.start();//注意要先启动线程池，否则会阻塞在_loop.loop()函数
+    _pool->start();//注意要先启动线程池，否则会阻塞在_loop.loop()函数
     _loop.setNewConnectionCallback(std::bind(&TcpServer::onNewConnection,this,std::placeholders::_1));
     _loop.setMessageCallback(std::bind(&TcpServer::onMessage,this,std::placeholders::_1));
     _loop.setCloseCallback(std::bind(&TcpServer::onClose,this,std::placeholders::_1));
@@ -22,21 +22,18 @@ void TcpServer::start(){
 }
 void TcpServer::stop(){
     _loop.unloop();
-    _pool.stop();
+    _pool->stop();
 }
 
 void TcpServer::onNewConnection(const TcpConnectionPtr &connPtr){
     cout << connPtr->toString() << " has connected!"<< endl;
-    auto rtspConn = std::make_shared<RtspConnect>(connPtr);
+    auto rtspConn = std::make_shared<RtspConnect>(connPtr,_pool);
     connPtr->setRtspConnect(rtspConn);
 }
 void TcpServer::onMessage(const TcpConnectionPtr &connPtr){
     auto rtspConn = connPtr->getRtspConnect();
     if (rtspConn) {
         rtspConn->handleRtspConnect();
-        _pool.addTask([rtspConn](){
-            rtspConn->handleRtspConnect();
-        });
     }
 }
 void TcpServer::onClose(const TcpConnectionPtr &connPtr){

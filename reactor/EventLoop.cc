@@ -18,15 +18,16 @@ EventLoop::EventLoop(Acceptor &acceptor)
 ,_isLooping(false)
 ,_acceptor(acceptor)
 ,_conns()
-,_evtfd(createEventFd())//创建用于通信的文件描述符
+,_eventor()//创建用于通信的文件描述符
 {
     int listenfd = acceptor.fd();
     addEpollReadFd(listenfd);
-    addEpollReadFd(_evtfd);//用于通信的描述符添加到epoll监听
+    // addEpollReadFd(_evtfd);//用于通信的描述符添加到epoll监听
+    addEpollReadFd(_eventor.getEvtfd());//用于通信的描述符添加到epoll监听
+    addEpollReadFd(_timeMgr.getTimerFd());//用于监听时间调度事件
 }
 EventLoop::~EventLoop(){
     close(_epfd);
-    close(_evtfd);
 }
 
 void EventLoop::loop(){
@@ -59,16 +60,19 @@ void EventLoop::waitEpollFd(){
         }
         for(int idx = 0;idx < nready; ++idx){
             int fd = _evtList[idx].data.fd;
-            if(fd == _acceptor.fd()){
+            if(fd == _acceptor.fd()){//处理当有客户端连接时
                 if(_evtList[idx].events & EPOLLIN){
                     handleNewConnection();
                 }
-            }else if(fd == _evtfd){
+            }else if(fd == _eventor.getEvtfd()){//处理事件响应
                 if(_evtList[idx].events & EPOLLIN){
-                    handleRead();
-                    doPenddingFunctors();//执行所有待执行任务
+                    _eventor.handleRead();
                 }
-            }else{
+            }else if(fd == _timeMgr.getTimerFd()){
+                if(_evtList[idx].events & EPOLLIN){
+                    _timeMgr.handleRead();
+                }
+            }else{//处理客户端有消息到来
                 if(_evtList[idx].events & EPOLLIN){
                     handleMessage(fd);
                 }
@@ -150,41 +154,18 @@ void EventLoop::setCloseCallback(TcpConnectionCallback &&cb){
     _onCloseCb = std::move(cb);
 }
 
-void EventLoop::handleRead(){
-    uint64_t two;
-    ssize_t ret = read(_evtfd,&two,sizeof(uint64_t));
-    if(ret != sizeof(uint64_t)){
-        perror("read");
-        return;
-    }
-}
-void EventLoop::doPenddingFunctors(){
-    vector<Functor> tmp;
-    unique_lock<mutex> autoLock(_mutex);
-    tmp.swap(_pendings);
-    autoLock.unlock();//手动提前解锁
-    for(auto &cb:tmp){
-        cb();
-    }
-}
-int EventLoop::createEventFd(){
-    int fd = eventfd(0,0);
-    if(fd < 0){
-        perror("eventfd");
-    }
-    return fd;
-}
-void EventLoop::wakeup(){
-    uint64_t one;
-    ssize_t ret = write(_evtfd,&one,sizeof(uint64_t));
-    if(ret != sizeof(uint64_t)){
-        perror("write");
-        return;
-    }
-}
 void EventLoop::runInLoop(Functor &&cb){
-    unique_lock<mutex> autoLock(_mutex);
-    _pendings.push_back(std::move(cb));
-    autoLock.unlock();
-    wakeup();
+    _eventor.addEventcb(std::move(cb));
+}
+
+TimerId EventLoop::addOneTimer(int delaySec, TimerCallback &&cb){
+    return _timeMgr.addTimer(delaySec,std::move(cb));
+}
+
+TimerId EventLoop::addPeriodicTimer(int delaySec, int intervalSec, TimerCallback &&cb){
+    return _timeMgr.addPeriodicTimer(delaySec, intervalSec, std::move(cb));
+}
+
+void EventLoop::removeTimer(TimerId timerId){
+    _timeMgr.removeTimer(timerId);
 }

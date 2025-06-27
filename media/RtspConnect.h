@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <mutex>
+#include "../reactor/ThreadPool.h"
 #include "RtpPusher.h"
 #include "H264FileReader.h"
 #include "AacFileReader.h"
@@ -20,7 +21,7 @@ struct RtspSession {
 };
 class RtspConnect{
 public:
-    RtspConnect(TcpConnectionPtr connPtr);
+    RtspConnect(TcpConnectionPtr connPtr,std::shared_ptr<ThreadPool> pool);
     ~RtspConnect();
     void handleRtspConnect();
     void releaseSession();
@@ -34,6 +35,7 @@ private:
     void sendResponse(const std::string& response);
     string generateSessionId();
     TcpConnectionPtr _connPtr;
+    std::shared_ptr<ThreadPool> _pool;
     string method,url,version;
     int CSeq;
     string transport;

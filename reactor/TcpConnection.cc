@@ -145,3 +145,13 @@ void TcpConnection::handleCloseCallback(){
         cout<<"_onCloseCb == nullptr"<<endl;
     }
 }
+
+TimerId TcpConnection::addOneTimer(int delaySec, TimerCallback &&cb){
+    return _loop->addOneTimer(delaySec, std::move(cb));
+}
+TimerId TcpConnection::addPeriodicTimer(int delaySec, int intervalSec, TimerCallback &&cb){
+    return _loop->addPeriodicTimer(delaySec, intervalSec, std::move(cb));
+}
+void TcpConnection::removeTimer(TimerId timerId){
+    _loop->removeTimer(timerId);
+}
