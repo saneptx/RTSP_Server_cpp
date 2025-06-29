@@ -21,7 +21,7 @@ struct RtspSession {
 };
 class RtspConnect{
 public:
-    RtspConnect(TcpConnectionPtr connPtr,std::shared_ptr<ThreadPool> pool);
+    RtspConnect(TcpConnectionPtr connPtr);
     ~RtspConnect();
     void handleRtspConnect();
     void releaseSession();
@@ -35,7 +35,7 @@ private:
     void sendResponse(const std::string& response);
     string generateSessionId();
     TcpConnectionPtr _connPtr;
-    std::shared_ptr<ThreadPool> _pool;
+
     string method,url,version;
     int CSeq;
     string transport;

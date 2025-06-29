@@ -10,9 +10,8 @@ using std::endl;
 std::unordered_map<std::string, RtspSession> RtspConnect::_sessionMap;
 std::mutex RtspConnect::_sessionMutex;
 
-RtspConnect::RtspConnect(TcpConnectionPtr connPtr,std::shared_ptr<ThreadPool> pool)
+RtspConnect::RtspConnect(TcpConnectionPtr connPtr)
 :_connPtr(connPtr)
-,_pool(pool)
 ,method("")
 ,url("")
 ,version("")
@@ -21,7 +20,7 @@ RtspConnect::RtspConnect(TcpConnectionPtr connPtr,std::shared_ptr<ThreadPool> po
 ,currentSessionId("")
 ,_h264FileReaderPtr(std::make_shared<H264FileReader>("data/1.h264"))
 ,_aacFileReaderPtr(std::make_shared<AacFileReader>("data/1.aac"))
-,_rtspPusher(_connPtr,_pool,_h264FileReaderPtr,_aacFileReaderPtr)
+,_rtspPusher(_connPtr,_h264FileReaderPtr,_aacFileReaderPtr)
 {
     std::cout << "[RtspConnect] constructed, this=" << this << std::endl;
 }
@@ -196,10 +195,7 @@ void RtspConnect::handlePlay() {
                            "CSeq: " + std::to_string(CSeq) + "\r\n"
                            "Session: " + currentSessionId + "\r\n\r\n";
     sendResponse(response);
-    // _rtspPusher.start(); 
-    _pool->addTask([this](){
-       _rtspPusher.start(); 
-    });
+    _rtspPusher.start(); 
     
 }
 void RtspConnect::handleTeardown() {

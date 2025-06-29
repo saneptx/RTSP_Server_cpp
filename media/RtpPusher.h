@@ -11,7 +11,6 @@ enum class ReadStatus;
 class RtpPusher {
 public:
     RtpPusher(std::shared_ptr<TcpConnection> conn,
-              std::shared_ptr<ThreadPool> pool,
               std::shared_ptr<MediaReader> videoReader,
               std::shared_ptr<MediaReader> audioReader);
 
@@ -23,7 +22,6 @@ private:
     void sendAacFrame(const std::vector<uint8_t>& aac);
     void sendLoop();
     std::shared_ptr<TcpConnection> _conn;
-    std::shared_ptr<ThreadPool> _pool;
     std::shared_ptr<MediaReader> _videoReader;
     std::shared_ptr<MediaReader> _audioReader;
 
@@ -34,8 +32,8 @@ private:
     uint32_t _timestampAudio = 0;
     const uint32_t _ssrcVideo = 0x12345678;
     const uint32_t _ssrcAudio = 0x87654321;
-    TimerId _timeid1;
-    TimerId _timeid2;
+    TimerId _timerId;
+    std::vector<uint8_t> _sps, _pps;
 };
 
 #endif

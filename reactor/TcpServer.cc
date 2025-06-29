@@ -27,7 +27,7 @@ void TcpServer::stop(){
 
 void TcpServer::onNewConnection(const TcpConnectionPtr &connPtr){
     cout << connPtr->toString() << " has connected!"<< endl;
-    auto rtspConn = std::make_shared<RtspConnect>(connPtr,_pool);
+    auto rtspConn = std::make_shared<RtspConnect>(connPtr);
     connPtr->setRtspConnect(rtspConn);
 }
 void TcpServer::onMessage(const TcpConnectionPtr &connPtr){
