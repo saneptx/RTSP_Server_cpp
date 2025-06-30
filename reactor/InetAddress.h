@@ -8,6 +8,7 @@ using std::string;
 
 class InetAddress{
 public:
+    InetAddress();
     InetAddress(const string &ip,unsigned short port);
     InetAddress(const struct sockaddr_in &addr);
     ~InetAddress();

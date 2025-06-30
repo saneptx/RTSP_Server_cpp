@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sys/eventfd.h>
 #include "TcpConnection.h"
+#include "UdpConnection.h"
 #include <memory>
 
 using std::cout;
@@ -68,7 +69,7 @@ void EventLoop::waitEpollFd(){
                 if(_evtList[idx].events & EPOLLIN){
                     _eventor.handleRead();
                 }
-            }else if(fd == _timeMgr.getTimerFd()){
+            }else if(fd == _timeMgr.getTimerFd()){//处理时间响应任务
                 if(_evtList[idx].events & EPOLLIN){
                     _timeMgr.handleRead();
                 }
@@ -96,17 +97,20 @@ void EventLoop::handleNewConnection(){
     connPtr->handleNewConnectionCallback();
 }
 void EventLoop::handleMessage(int fd){
-    auto it = _conns.find(fd);
-    if(it != _conns.end()){
+    auto itTcp = _conns.find(fd);
+    auto itUdp = udpConns.find(fd);
+    if(itTcp != _conns.end()){
         //连接存在可以进行收发消息
-        bool flag = it->second->isClosed();
+        bool flag = itTcp->second->isClosed();
         if(flag){
-            it->second->handleCloseCallback();
+            itTcp->second->handleCloseCallback();
             delEpollReadFd(fd);//断开连接后删除监听
-            _conns.erase(it);
+            _conns.erase(itTcp);
         }else{
-            it->second->handleMessageCallback();
+            itTcp->second->handleMessageCallback();
         }
+    }else if(itUdp != udpConns.end()){
+        itUdp->second->handleMessageCallback();//处理udp消息
     }else{
         //连接不存在，直接让程序退出
         cout<<"连接不存在！"<<endl;

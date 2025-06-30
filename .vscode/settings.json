@@ -55,6 +55,10 @@
         "thread": "cpp",
         "typeinfo": "cpp",
         "fstream": "cpp",
-        "optional": "cpp"
+        "optional": "cpp",
+        "bitset": "cpp",
+        "cstring": "cpp",
+        "regex": "cpp",
+        "shared_mutex": "cpp"
     }
 }

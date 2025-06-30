@@ -1,5 +1,8 @@
 #include "InetAddress.h"
 #include <strings.h>
+InetAddress::InetAddress(){
+    
+}
 InetAddress::InetAddress(const string &ip,unsigned short port)
 {
     ::bzero(&_addr,sizeof(struct sockaddr_in));

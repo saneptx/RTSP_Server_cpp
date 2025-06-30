@@ -17,6 +17,8 @@ using std::mutex;
 
 class Acceptor;
 class TcpConnection;
+class UdpConnection;
+using UdpConnectionPtr = std::shared_ptr<UdpConnection>;
 using TcpConnectionPtr = shared_ptr<TcpConnection>;
 using TcpConnectionCallback = function<void(const TcpConnectionPtr &)>;
 using Functor = function<void()>;
@@ -38,13 +40,14 @@ public:
     TimerId addPeriodicTimer(int delaySec, int intervalSec, TimerCallback &&cb);
     void removeTimer(TimerId timerId);
     void runInLoop(Functor &&cb);
+    void addEpollReadFd(int fd);
+    void delEpollReadFd(int fd);
+    map<int,UdpConnectionPtr> udpConns;
 
 private:
     void waitEpollFd();
     void handleNewConnection();
     void handleMessage(int fd);
-    void addEpollReadFd(int fd);
-    void delEpollReadFd(int fd);
     int createEpollFd();
 
 
