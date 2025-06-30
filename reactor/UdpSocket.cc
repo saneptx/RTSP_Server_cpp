@@ -7,13 +7,16 @@
 #include <errno.h>
 #include <string.h>
 
-UdpSocket::UdpSocket(const string &ip,unsigned short port)
-:_serverAddr(ip,port){
+UdpSocket::UdpSocket(const string &ip,unsigned short port,InetAddress clientAddr)
+:_serverAddr(ip,port)
+,_clientAddr(clientAddr){
     _fd = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (_fd < 0) {
         perror("socket");
         return;
     }
+    bind();
+    setNoblock();
 }
 
 UdpSocket::UdpSocket(int fd) : _fd(fd) {
@@ -82,6 +85,7 @@ int UdpSocket::recvfrom(void* data, size_t len) {
     return ret;
 } 
 
+
 InetAddress UdpSocket::getPeerAddr(){
     return _clientAddr;
-}
+} 

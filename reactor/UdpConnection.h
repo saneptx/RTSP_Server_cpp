@@ -19,12 +19,12 @@ class UdpConnection : public std::enable_shared_from_this<UdpConnection> {
     using UdpConnectionCallback = function<void(const UdpConnectionPtr&)>;
     
 public:
-    explicit UdpConnection(const string &ip,unsigned short port, std::shared_ptr<EventLoop> loopPtr);
+    explicit UdpConnection(const string &ip,unsigned short port,InetAddress peerAddr, std::shared_ptr<EventLoop> loopPtr);
     ~UdpConnection();
     
     void send(const std::string& msg);
     void sendInLoop(const std::string& msg);
-    std::string recv();
+    int recv(void *buff);
     
     // 回调函数注册
     void setMessageCallback(const UdpConnectionCallback& cb);

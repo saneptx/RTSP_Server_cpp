@@ -7,7 +7,7 @@
 
 class UdpSocket : NonCopyable {
 public:
-    UdpSocket(const string &ip,unsigned short port);
+    UdpSocket(const string &ip,unsigned short port,InetAddress clientAddr);
     explicit UdpSocket(int fd);
     ~UdpSocket();
     
@@ -19,6 +19,8 @@ public:
     int bind();
     int sendto(const void* data, size_t len);
     int recvfrom(void* data, size_t len);
+    void setPeerAddr(InetAddress clientAddr);
+    void closeUdp();
     InetAddress getPeerAddr();
     
 private:

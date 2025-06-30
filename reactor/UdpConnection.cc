@@ -6,8 +6,8 @@ using std::cout;
 using std::endl;
 using std::ostringstream;
 
-UdpConnection::UdpConnection(const string &ip,unsigned short port, std::shared_ptr<EventLoop> loopPtr)
-    : _sock(ip,port), _loopPtr(loopPtr), _localAddr(getLocalAddr()) {
+UdpConnection::UdpConnection(const string &ip,unsigned short port,InetAddress peerAddr,std::shared_ptr<EventLoop> loopPtr)
+    : _sock(ip,port,peerAddr), _loopPtr(loopPtr),_peerAddr(peerAddr), _localAddr(getLocalAddr()) {
 }
 
 UdpConnection::~UdpConnection() {
@@ -25,14 +25,10 @@ void UdpConnection::sendInLoop(const std::string& msg) {
     }
 }
 
-std::string UdpConnection::recv() {
-    char buff[4096] = {0};
+int UdpConnection::recv(void* buff) {
     int n = _sock.recvfrom(buff, sizeof(buff));
     _peerAddr = _sock.getPeerAddr();
-    if (n > 0) {
-        return std::string(buff, n);
-    }
-    return "";
+    return n;
 }
 
 void UdpConnection::setMessageCallback(const UdpConnectionCallback& cb) {

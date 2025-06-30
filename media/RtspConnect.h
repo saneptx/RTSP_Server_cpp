@@ -60,7 +60,7 @@ private:
     string currentSessionId;
     std::shared_ptr<H264FileReader> _h264FileReaderPtr;
     std::shared_ptr<AacFileReader> _aacFileReaderPtr;
-    RtpPusher _rtspPusher;
+    std::shared_ptr<RtpPusher> _rtspPusher;
     
     // UDP连接
     std::shared_ptr<UdpConnection> _videoRtpConn;

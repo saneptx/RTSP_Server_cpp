@@ -12,7 +12,7 @@ std::unordered_map<std::string, RtspSession> RtspConnect::_sessionMap;
 std::mutex RtspConnect::_sessionMutex;
 
 // 用于端口分配的静态变量
-static std::atomic<int> nextUdpPort{10000};
+static std::atomic<int> nextUdpPort{8889};
 static std::mutex portMutex;
 
 RtspConnect::RtspConnect(TcpConnectionPtr connPtr,EventLoopPtr loopPtr)
@@ -68,12 +68,15 @@ void RtspConnect::releaseSession() {
     if (!currentSessionId.empty()) {
         auto it = _sessionMap.find(currentSessionId);
         if (it != _sessionMap.end()) {
+            if (it->second.useUdp) {
+                releaseUdpPorts();
+            }
             _sessionMap.erase(it);
             std::cout << "Session " << currentSessionId << " released." << std::endl;
         }
         currentSessionId.clear();
     }
-    _rtspPusher.stop();
+    if(_rtspPusher) _rtspPusher->stop();
 }
 
 void RtspConnect::parseRequest(const std::string& rBuf) {
@@ -181,7 +184,12 @@ void RtspConnect::handleSetup() {
         // UDP传输
         useUdp = true;
         session.useUdp = true;
-        
+        int basePort = allocateUdpPorts();
+        if (session.serverVideoPort == 0) {
+            session.serverVideoPort = basePort;
+        }else if(session.serverAudioPort == 0){
+            session.serverAudioPort = basePort + 2;
+        }
         // 解析客户端端口
         std::regex clientPortRegex(R"(client_port=(\d+)-(\d+))");
         std::smatch match;
@@ -192,24 +200,16 @@ void RtspConnect::handleSetup() {
             if (url.find("track0") != std::string::npos) { // 视频
                 session.clientVideoRtpAddr = InetAddress(_connPtr->getPeerAddr().ip(), clientRtpPort);
                 session.clientVideoRtcpAddr = InetAddress(_connPtr->getPeerAddr().ip(), clientRtcpPort);
+                _videoRtpConn = std::make_shared<UdpConnection>(_connPtr->getLocalAddr().ip(),session.serverVideoPort,session.clientVideoRtpAddr,_loopPtr);//建立视频Rtp连接
+                _videoRtcpConn = std::make_shared<UdpConnection>(_connPtr->getLocalAddr().ip(),session.serverVideoPort+1,session.clientVideoRtcpAddr,_loopPtr);//建立视频Rtcp连接
             } else if (url.find("track1") != std::string::npos) { // 音频
                 session.clientAudioRtpAddr = InetAddress(_connPtr->getPeerAddr().ip(), clientRtpPort);
                 session.clientAudioRtcpAddr = InetAddress(_connPtr->getPeerAddr().ip(), clientRtcpPort);
+                _audioRtpConn = std::make_shared<UdpConnection>(_connPtr->getLocalAddr().ip(),session.serverAudioPort,session.clientAudioRtpAddr,_loopPtr);//建立音频Rtp连接
+                _audioRtcpConn = std::make_shared<UdpConnection>(_connPtr->getLocalAddr().ip(),session.serverAudioPort+1,session.clientAudioRtcpAddr,_loopPtr);//建立音频Rtcp连接
             }
         }
-        
-        // 分配服务器端口
-        if (session.serverVideoPort == 0) {
-            int basePort = allocateUdpPorts();
-            session.serverVideoPort = basePort;
-            session.serverAudioPort = basePort + 2;
-        }
-        _videoRtpConn = std::make_shared<UdpConnection>(_connPtr->getPeerAddr().ip(),session.serverVideoPort,_loopPtr);//建立视频Rtp连接
-        _videoRtcpConn = std::make_shared<UdpConnection>(_connPtr->getPeerAddr().ip(),session.serverVideoPort+1,_loopPtr);//建立视频Rtcp连接
-        _audioRtpConn = std::make_shared<UdpConnection>(_connPtr->getPeerAddr().ip(),session.serverAudioPort,_loopPtr);//建立音频Rtp连接
-        _audioRtcpConn = std::make_shared<UdpConnection>(_connPtr->getPeerAddr().ip(),session.serverAudioPort+1,_loopPtr);//建立音频Rtcp连接
     }
-    
     std::string response;
     if (url.find("track0") != std::string::npos) { // 视频
         if (useUdp) {
@@ -259,25 +259,58 @@ void RtspConnect::handlePlay() {
 
     it->second.isPlaying = true;
     it->second.lastActive = time(nullptr);
-    
     if(it->second.useUdp){
-        RtpPusher _rtspPusher(_videoRtpConn,_audioRtpConn,_h264FileReaderPtr,_aacFileReaderPtr);
+        this->_rtspPusher = std::make_shared<RtpPusher>(_videoRtpConn,_audioRtpConn,_h264FileReaderPtr,_aacFileReaderPtr);
         _loopPtr->addEpollReadFd(_videoRtcpConn->getUdpFd());
         _loopPtr->addEpollReadFd(_audioRtcpConn->getUdpFd());
         _loopPtr->udpConns[_videoRtcpConn->getUdpFd()] = _videoRtcpConn;
         _loopPtr->udpConns[_audioRtcpConn->getUdpFd()] = _audioRtcpConn;
-        _videoRtcpConn->setMessageCallback([](const UdpConnectionPtr &conn){
-            cout<<"recive RTCP message"<<endl;
+        auto rtcpCallback = [](const UdpConnectionPtr &udpConn, const char* streamType){
+            char buffer[2048];
+            int n = udpConn->recv(buffer);
+            if (n <= 0) {
+                cout<<"[RTCP] No recv!"<<endl;
+            }
+            const uint8_t* packet = (const uint8_t*)buffer;
+            size_t len = n;
+            size_t pos = 0;
+
+            while (pos + 4 <= len) { // Minimum RTCP header size
+                uint16_t length_words = (packet[pos + 2] << 8) | packet[pos + 3];
+                size_t packet_len_bytes = (length_words + 1) * 4;
+
+                if (pos + packet_len_bytes > len) {
+                    // Malformed packet, stop processing
+                    break;
+                }
+
+                uint8_t pt = packet[pos + 1];
+                if (pt == 201 && pos + 8 <= len) { // Receiver Report
+                    // SSRC of the media source being reported on
+                    uint32_t ssrc_source = ntohl(*(uint32_t*)&packet[pos + 8]);
+                    cout << "[RTCP] Received Receiver Report for " << streamType
+                         << " stream (SSRC: " << ssrc_source << ")" << endl;
+                }
+                
+                pos += packet_len_bytes;
+            }
+        };
+        _videoRtcpConn->setMessageCallback([rtcpCallback](const UdpConnectionPtr &conn){
+            rtcpCallback(conn, "video");
+        });
+
+        _audioRtcpConn->setMessageCallback([rtcpCallback](const UdpConnectionPtr &conn){
+            rtcpCallback(conn, "audio");
         });
     }else{
-        RtpPusher _rtspPusher(_connPtr,_h264FileReaderPtr,_aacFileReaderPtr);
+        this->_rtspPusher = std::make_shared<RtpPusher>(_connPtr,_h264FileReaderPtr,_aacFileReaderPtr);
     }
     
     std::string response = "RTSP/1.0 200 OK\r\n"
                            "CSeq: " + std::to_string(CSeq) + "\r\n"
                            "Session: " + currentSessionId + "\r\n\r\n";
     sendResponse(response);
-    _rtspPusher.start(); 
+    if(_rtspPusher) _rtspPusher->start(); 
 }
 void RtspConnect::handleTeardown() {
     std::lock_guard<std::mutex> lock(_sessionMutex);
@@ -289,7 +322,7 @@ void RtspConnect::handleTeardown() {
     std::string response = "RTSP/1.0 200 OK\r\n"
                            "CSeq: " + std::to_string(CSeq) + "\r\n\r\n";
     sendResponse(response);
-    _rtspPusher.stop();
+    if(_rtspPusher) _rtspPusher->stop();
 }
 void RtspConnect::sendResponse(const std::string& response) {
     _connPtr->sendInLoop(response);
@@ -305,10 +338,22 @@ string RtspConnect::generateSessionId() {
 
 int RtspConnect::allocateUdpPorts() {
     std::lock_guard<std::mutex> lock(portMutex);
-    int basePort = nextUdpPort.fetch_add(6); // 分配6个端口：视频RTP/RTCP, 音频RTP/RTCP, 控制RTP/RTCP
+    int basePort = nextUdpPort.fetch_add(2); // 分配6个端口：视频RTP/RTCP, 音频RTP/RTCP, 控制RTP/RTCP
     return basePort;
 }
 
 void RtspConnect::releaseUdpPorts() {
-    // 这里可以添加端口释放逻辑
+    if(_videoRtcpConn){
+        _loopPtr->delEpollReadFd(_videoRtcpConn->getUdpFd());
+        _loopPtr->udpConns.erase(_videoRtcpConn->getUdpFd());
+    }
+    if(_audioRtcpConn){
+        _loopPtr->delEpollReadFd(_audioRtcpConn->getUdpFd());
+        _loopPtr->udpConns.erase(_audioRtcpConn->getUdpFd());
+    }
+    _videoRtpConn.reset();
+    _videoRtcpConn.reset();
+    _audioRtpConn.reset();
+    _audioRtcpConn.reset();
+
 }
