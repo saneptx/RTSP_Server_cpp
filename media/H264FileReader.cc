@@ -27,13 +27,13 @@ ReadStatus H264FileReader::readFrame(std::vector<uint8_t>& outFrame) {
 
     std::vector<uint8_t> buffer;
     uint8_t byte;
-    size_t startCodeLen = 0;
+    // size_t startCodeLen = 0;
 
     // 1. 跳过文件开头的起始码
     while (_file.read((char*)&byte, 1)) {
         buffer.push_back(byte);
         if (isStartCode(buffer.data(), buffer.size())) {
-            startCodeLen = (buffer.size() >= 4 && buffer[0] == 0x00 && buffer[1] == 0x00 && buffer[2] == 0x00 && buffer[3] == 0x01) ? 4 : 3;
+            // startCodeLen = (buffer.size() >= 4 && buffer[0] == 0x00 && buffer[1] == 0x00 && buffer[2] == 0x00 && buffer[3] == 0x01) ? 4 : 3;
             buffer.clear();
             break;
         }

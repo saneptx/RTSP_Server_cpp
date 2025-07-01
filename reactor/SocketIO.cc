@@ -55,7 +55,7 @@ int SocketIO::readLine(char *buf,int len){
                     int sz = idx + 1;
                     readn(pstr,sz);
                     pstr += sz;
-                    *pstr == '\0';//c风格以'\0'结尾
+                    *pstr = '\0';//c风格以'\0'结尾
                     return total + sz;
                 }
             }

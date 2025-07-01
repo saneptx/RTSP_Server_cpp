@@ -7,31 +7,37 @@
 #include "TcpConnection.h"
 #include "UdpConnection.h"
 #include <memory>
+#include <cassert>
 
 using std::cout;
 using std::endl;
 using std::cerr;
 using std::unique_lock;
 
-EventLoop::EventLoop(Acceptor &acceptor)
+EventLoop::EventLoop(Acceptor &acceptor, bool isMainLoop)
 :_epfd(createEpollFd())
 ,_evtList(1024)
 ,_isLooping(false)
 ,_acceptor(acceptor)
 ,_conns()
 ,_eventor()//创建用于通信的文件描述符
+,_threadId() // 初始化为空
 {
-    int listenfd = acceptor.fd();
-    addEpollReadFd(listenfd);
-    // addEpollReadFd(_evtfd);//用于通信的描述符添加到epoll监听
-    addEpollReadFd(_eventor.getEvtfd());//用于通信的描述符添加到epoll监听
-    addEpollReadFd(_timeMgr.getTimerFd());//用于监听时间调度事件
+    if (isMainLoop) {
+        int listenfd = acceptor.fd();
+        addEpollReadFd(listenfd);
+    }
+    else{
+        addEpollReadFd(_eventor.getEvtfd());
+        addEpollReadFd(_timeMgr.getTimerFd());
+    }
 }
 EventLoop::~EventLoop(){
     close(_epfd);
 }
 
 void EventLoop::loop(){
+    _threadId = std::this_thread::get_id();  // 记录当前线程ID
     _isLooping = true;
     while(_isLooping){
         waitEpollFd();
@@ -40,6 +46,28 @@ void EventLoop::loop(){
 void EventLoop::unloop(){
     cout<<"unloop()"<<endl;
     _isLooping = false;
+}
+
+void EventLoop::assertInLoopThread() {
+    if (!isInLoopThread()) {
+        cerr << "EventLoop::assertInLoopThread - EventLoop was created in threadId = " 
+             << _threadId << ", current thread id = " << std::this_thread::get_id() << endl;
+        abort();
+    }
+}
+
+void EventLoop::addConnection(const TcpConnectionPtr& conn) {
+    assertInLoopThread();
+    int fd = conn->getFd();
+    _conns[fd] = conn;
+    addEpollReadFd(fd);
+}
+
+void EventLoop::removeConnection(const TcpConnectionPtr& conn) {
+    assertInLoopThread();
+    int fd = conn->getFd();
+    _conns.erase(fd);
+    delEpollReadFd(fd);
 }
 
 void EventLoop::waitEpollFd(){
@@ -52,7 +80,7 @@ void EventLoop::waitEpollFd(){
         cerr<<"-1 == nready" <<endl;
         return; 
     }else if(0 == nready){
-        cout<<">>epoll_wait timeout"<<endl;
+        cout<<">>epoll_wait timeout,thread id:"<<std::this_thread::get_id()<<endl;
     }else{
         //判断一下文件描述符是不是到1024了
         //如果达到1024就需要扩容
@@ -82,21 +110,17 @@ void EventLoop::waitEpollFd(){
     }
 }
 void EventLoop::handleNewConnection(){
+    cout<<"handleNewConnection"<<endl;
     int connfd = _acceptor.accept();
     if(connfd < 0){
         perror("handleNewConnection accpet");
         return;
     }
-    addEpollReadFd(connfd);
     TcpConnectionPtr connPtr(new TcpConnection(connfd,this));
-    connPtr->setNewConnectionCallback(_onNewConnectionCb);
-    connPtr->setMessageCallback(_onMessageCb);
-    connPtr->setCloseCallback(_onCloseCb);
-    connPtr->toString();
-    _conns[connfd] = connPtr;
-    connPtr->handleNewConnectionCallback();
+    _onNewConnectionCb(connPtr); // 只分配，不监听
 }
 void EventLoop::handleMessage(int fd){
+    cout<<"handleMessage"<<endl;
     auto itTcp = _conns.find(fd);
     auto itUdp = udpConns.find(fd);
     if(itTcp != _conns.end()){
@@ -104,9 +128,9 @@ void EventLoop::handleMessage(int fd){
         bool flag = itTcp->second->isClosed();
         if(flag){
             itTcp->second->handleCloseCallback();
-            delEpollReadFd(fd);//断开连接后删除监听
-            _conns.erase(itTcp);
+            removeConnection(itTcp->second);//断开连接后删除监听
         }else{
+            cout<<"handleMessageCallback"<<endl;
             itTcp->second->handleMessageCallback();
         }
     }else if(itUdp != udpConns.end()){
@@ -159,7 +183,11 @@ void EventLoop::setCloseCallback(TcpConnectionCallback &&cb){
 }
 
 void EventLoop::runInLoop(Functor &&cb){
-    _eventor.addEventcb(std::move(cb));
+    if (isInLoopThread()) {
+        cb();
+    } else {
+        _eventor.addEventcb(std::move(cb));
+    }
 }
 
 TimerId EventLoop::addOneTimer(int delaySec, TimerCallback &&cb){

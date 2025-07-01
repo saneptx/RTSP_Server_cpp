@@ -26,6 +26,7 @@ public:
     string reciveRtspRequest();//接收Rtsp请求
     string toString();
     bool isClosed() const;
+    int getFd() const { return _sock.fd(); }  // 新增：获取文件描述符
 
 
     //回调函数注册
@@ -55,7 +56,7 @@ private:
     InetAddress _peerAddr;
     /*
     为什么要有持久化 buffer？
-    你每次 recv 到的数据，可能只是“消息的一部分”，也可能是“多条消息”。
+    你每次 recv 到的数据，可能只是"消息的一部分"，也可能是"多条消息"。
     如果你只处理本次 recv 的内容，就会丢失消息边界，导致解析出错。
     持久化 buffer就是把每次 recv 到的数据都 append 到一个成员变量（如 _recvBuffer）里，只要没处理完的数据都留着，直到拼出完整的消息。
     */

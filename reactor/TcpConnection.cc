@@ -8,9 +8,9 @@ using std::ostringstream;
 
 
 TcpConnection::TcpConnection(int fd,EventLoop *loop)
-:_sockIO(fd)
+:_loop(loop)
+,_sockIO(fd)
 ,_sock(fd)
-,_loop(loop)
 ,_localAddr(getLocalAddr())
 ,_peerAddr(getPeerAddr()){
 

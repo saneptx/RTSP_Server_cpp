@@ -6,6 +6,7 @@
 #include <memory>
 #include <functional>
 #include <mutex>
+#include <thread>
 #include "Eventor.h"
 #include "TimerManager.h"
 
@@ -27,7 +28,7 @@ using TimerId = uint64_t;
 
 class EventLoop{
 public:
-    EventLoop(Acceptor &acceptor);
+    EventLoop(Acceptor &acceptor, bool isMainLoop = false);
     ~EventLoop();
 
     void loop();
@@ -42,6 +43,15 @@ public:
     void runInLoop(Functor &&cb);
     void addEpollReadFd(int fd);
     void delEpollReadFd(int fd);
+    
+    // 新增：线程安全的方法
+    bool isInLoopThread() const { return _threadId == std::this_thread::get_id(); }
+    void assertInLoopThread();
+    
+    // 新增：连接管理
+    void addConnection(const TcpConnectionPtr& conn);
+    void removeConnection(const TcpConnectionPtr& conn);
+    
     map<int,UdpConnectionPtr> udpConns;
 
 private:
@@ -50,13 +60,13 @@ private:
     void handleMessage(int fd);
     int createEpollFd();
 
-
 private:
     int _epfd;
     vector<struct epoll_event> _evtList;
     bool _isLooping;
     Acceptor &_acceptor;
     map<int,TcpConnectionPtr> _conns;
+    mutex _connsMutex;  // 保护连接映射的互斥锁
 
     TcpConnectionCallback _onNewConnectionCb;
     TcpConnectionCallback _onMessageCb;
@@ -64,6 +74,8 @@ private:
 
     Eventor _eventor;
     TimerManager _timeMgr;
+    
+    std::thread::id _threadId;  // 记录当前EventLoop运行的线程ID
 };
 
 #endif

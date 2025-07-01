@@ -50,7 +50,8 @@ void TimerManager::removeTimer(TimerId timerId) {
 
 void TimerManager::handleRead() {
     uint64_t expirations;
-    ::read(_timerfd, &expirations, sizeof(expirations));  // 清除触发状态
+    ssize_t ret = ::read(_timerfd, &expirations, sizeof(expirations));  // 清除触发状态
+    (void)ret; // 忽略返回值
 
     uint64_t now = getNowMs();
 

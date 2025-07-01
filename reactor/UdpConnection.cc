@@ -7,7 +7,7 @@ using std::endl;
 using std::ostringstream;
 
 UdpConnection::UdpConnection(const string &ip,unsigned short port,InetAddress peerAddr,std::shared_ptr<EventLoop> loopPtr)
-    : _sock(ip,port,peerAddr), _loopPtr(loopPtr),_peerAddr(peerAddr), _localAddr(getLocalAddr()) {
+    : _loopPtr(loopPtr), _sock(ip,port,peerAddr), _localAddr(getLocalAddr()), _peerAddr(peerAddr) {
 }
 
 UdpConnection::~UdpConnection() {
