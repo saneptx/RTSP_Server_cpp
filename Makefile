@@ -6,7 +6,7 @@ LIBS = -lpthread
 # 源文件
 REACTOR_SOURCES = $(wildcard reactor/*.cc)
 MEDIA_SOURCES = $(wildcard media/*.cc)
-MAIN_SOURCE = TestMultiThreadServer.cc
+MAIN_SOURCE = RtspServer.cc
 
 # 目标文件
 REACTOR_OBJECTS = $(REACTOR_SOURCES:.cc=.o)
@@ -14,7 +14,7 @@ MEDIA_OBJECTS = $(MEDIA_SOURCES:.cc=.o)
 MAIN_OBJECT = $(MAIN_SOURCE:.cc=.o)
 
 # 可执行文件
-TARGET = rtsp_server_mt
+TARGET = rtsp_server
 
 # 默认目标
 all: $(TARGET)

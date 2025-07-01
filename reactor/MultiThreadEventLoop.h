@@ -26,7 +26,7 @@ public:
 
 private:
     void threadFunc();  // 工作线程函数
-    void onNewConnection(const TcpConnectionPtr& connPtr);
+    void onNewConnection(int connfd);
     void onMessage(const TcpConnectionPtr& connPtr);
     void onClose(const TcpConnectionPtr& connPtr);
 

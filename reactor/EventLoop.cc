@@ -89,21 +89,28 @@ void EventLoop::waitEpollFd(){
         }
         for(int idx = 0;idx < nready; ++idx){
             int fd = _evtList[idx].data.fd;
+            uint32_t events = _evtList[idx].events;
             if(fd == _acceptor.fd()){//处理当有客户端连接时
-                if(_evtList[idx].events & EPOLLIN){
+                if(events & EPOLLIN){
                     handleNewConnection();
                 }
             }else if(fd == _eventor.getEvtfd()){//处理事件响应
-                if(_evtList[idx].events & EPOLLIN){
+                if(events & EPOLLIN){
                     _eventor.handleRead();
                 }
             }else if(fd == _timeMgr.getTimerFd()){//处理时间响应任务
-                if(_evtList[idx].events & EPOLLIN){
+                if(events & EPOLLIN){
                     _timeMgr.handleRead();
                 }
-            }else{//处理客户端有消息到来
-                if(_evtList[idx].events & EPOLLIN){
+            }else{
+                if(events & EPOLLIN){
                     handleMessage(fd);
+                }
+                if(events & EPOLLOUT){
+                    auto itTcp = _conns.find(fd);
+                    if(itTcp != _conns.end()){
+                        itTcp->second->handleWriteCallback();
+                    }
                 }
             }
         }
@@ -116,8 +123,7 @@ void EventLoop::handleNewConnection(){
         perror("handleNewConnection accpet");
         return;
     }
-    TcpConnectionPtr connPtr(new TcpConnection(connfd,this));
-    _onNewConnectionCb(connPtr); // 只分配，不监听
+    _onNewConnectionCb(connfd);
 }
 void EventLoop::handleMessage(int fd){
     cout<<"handleMessage"<<endl;
@@ -172,7 +178,28 @@ void EventLoop::delEpollReadFd(int fd){
     }
 }
 
-void EventLoop::setNewConnectionCallback(TcpConnectionCallback &&cb){
+void EventLoop::addEpollWriteFd(int fd){
+    struct epoll_event evt;
+    evt.events = EPOLLOUT | EPOLLIN;
+    evt.data.fd = fd;
+    int ret = ::epoll_ctl(_epfd, EPOLL_CTL_MOD, fd, &evt);
+    if(ret < 0){
+        perror("epoll_ctl_mod (add write)");
+        return;
+    }
+}
+void EventLoop::delEpollWriteFd(int fd){
+    struct epoll_event evt;
+    evt.events = EPOLLIN;
+    evt.data.fd = fd;
+    int ret = ::epoll_ctl(_epfd, EPOLL_CTL_MOD, fd, &evt);
+    if(ret < 0){
+        perror("epoll_ctl_mod (del write)");
+        return;
+    }
+}
+
+void EventLoop::setNewConnectionCallback(std::function<void(int)> &&cb){
     _onNewConnectionCb = std::move(cb);
 }
 void EventLoop::setMessageCallback(TcpConnectionCallback &&cb){

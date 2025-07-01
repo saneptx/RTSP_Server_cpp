@@ -89,20 +89,15 @@ void MultiThreadEventLoop::threadFunc() {
     _subLoops[index]->loop();
 }
 
-void MultiThreadEventLoop::onNewConnection(const TcpConnectionPtr& connPtr) {
-    cout << connPtr->toString() << " has connected!" << endl;
-    // 将新连接分配给一个子EventLoop
+void MultiThreadEventLoop::onNewConnection(int connfd) {
     EventLoop* loop = getNextLoop();
-    // 在选定的EventLoop中创建RtspConnect
-    loop->runInLoop([connPtr, loop, this]() {
-        // 子线程 EventLoop 负责 addConnection
+    loop->runInLoop([connfd, loop, this]() {
+        TcpConnectionPtr connPtr(new TcpConnection(connfd, loop));
         loop->addConnection(connPtr);
-        // 设置回调
         connPtr->setMessageCallback(
             std::bind(&MultiThreadEventLoop::onMessage, this, std::placeholders::_1));
         connPtr->setCloseCallback(
             std::bind(&MultiThreadEventLoop::onClose, this, std::placeholders::_1));
-        // 创建 RtspConnect
         auto rtspConn = std::make_shared<RtspConnect>(connPtr, std::shared_ptr<EventLoop>(loop));
         connPtr->setRtspConnect(rtspConn);
     });

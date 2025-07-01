@@ -21,12 +21,30 @@ TcpConnection::~TcpConnection(){
 }
 
 void TcpConnection::send(const string &msg){
-    _sockIO.writen(msg.c_str(),msg.size());
+    if (_sendBuffer.empty() && !_isWriting) {
+        int written = _sockIO.writen(msg.c_str(), msg.size());
+        if (written < (int)msg.size()) {
+            // 没写完，缓存剩余部分
+            _sendBuffer = msg.substr(written);
+            _isWriting = true;
+            _loop->addEpollWriteFd(getFd());
+        }
+    } else {
+        // 缓冲区有数据，直接追加
+        _sendBuffer += msg;
+        if (!_isWriting) {
+            _isWriting = true;
+            _loop->addEpollWriteFd(getFd());
+        }
+    }
 }
 
 void TcpConnection::sendInLoop(const string &msg){
     if(_loop){
-        _loop->runInLoop(std::move(bind(&TcpConnection::send,this,msg)));
+        auto self = shared_from_this();
+        _loop->runInLoop([self, msg](){
+            self->send(msg);
+        });
     }
 }
 
@@ -154,4 +172,23 @@ TimerId TcpConnection::addPeriodicTimer(int delaySec, int intervalSec, TimerCall
 }
 void TcpConnection::removeTimer(TimerId timerId){
     _loop->removeTimer(timerId);
+}
+
+void TcpConnection::handleWriteCallback() {
+    if (_sendBuffer.empty()) {
+        _isWriting = false;
+        _loop->delEpollWriteFd(getFd());
+        return;
+    }
+    int written = _sockIO.writen(_sendBuffer.c_str(), _sendBuffer.size());
+    if (written < 0) {
+        // 错误，关闭连接
+        handleCloseCallback();
+        return;
+    }
+    _sendBuffer.erase(0, written);
+    if (_sendBuffer.empty()) {
+        _isWriting = false;
+        _loop->delEpollWriteFd(getFd());
+    }
 }

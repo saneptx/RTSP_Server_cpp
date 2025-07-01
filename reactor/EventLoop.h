@@ -34,7 +34,7 @@ public:
     void loop();
     void unloop();
 
-    void setNewConnectionCallback(TcpConnectionCallback &&cb);
+    void setNewConnectionCallback(std::function<void(int)> &&cb);
     void setMessageCallback(TcpConnectionCallback &&cb);
     void setCloseCallback(TcpConnectionCallback &&cb);
     TimerId addOneTimer(int delaySec, TimerCallback &&cb);
@@ -43,6 +43,8 @@ public:
     void runInLoop(Functor &&cb);
     void addEpollReadFd(int fd);
     void delEpollReadFd(int fd);
+    void addEpollWriteFd(int fd);
+    void delEpollWriteFd(int fd);
     
     // 新增：线程安全的方法
     bool isInLoopThread() const { return _threadId == std::this_thread::get_id(); }
@@ -68,7 +70,7 @@ private:
     map<int,TcpConnectionPtr> _conns;
     mutex _connsMutex;  // 保护连接映射的互斥锁
 
-    TcpConnectionCallback _onNewConnectionCb;
+    std::function<void(int)> _onNewConnectionCb;
     TcpConnectionCallback _onMessageCb;
     TcpConnectionCallback _onCloseCb;
 

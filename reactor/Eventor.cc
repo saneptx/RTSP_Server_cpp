@@ -9,7 +9,7 @@ Eventor::~Eventor(){
     close(_evtfd);
 }
 void Eventor::wakeUp(){
-    uint64_t one;
+    uint64_t one = 1;
     ssize_t ret = write(_evtfd,&one,sizeof(uint64_t));
     if(ret != sizeof(uint64_t)){
         perror("write");

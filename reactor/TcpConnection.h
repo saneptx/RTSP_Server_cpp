@@ -48,6 +48,9 @@ public:
     TimerId addOneTimer(int delaySec, TimerCallback &&cb);
     TimerId addPeriodicTimer(int delaySec, int intervalSec, TimerCallback &&cb);
     void removeTimer(TimerId timerId);
+
+    void handleWriteCallback(); // 写事件回调
+
 private:
     EventLoop *_loop;
     SocketIO _sockIO;
@@ -61,6 +64,8 @@ private:
     持久化 buffer就是把每次 recv 到的数据都 append 到一个成员变量（如 _recvBuffer）里，只要没处理完的数据都留着，直到拼出完整的消息。
     */
     std::string _recvBuffer;//持久化buffer
+    std::string _sendBuffer; // 发送缓冲区
+    bool _isWriting = false; // 是否正在监听写事件
 
     std::shared_ptr<RtspConnect> _rtspConn;
     TcpConnectionCallback _onNewConnectionCb;
