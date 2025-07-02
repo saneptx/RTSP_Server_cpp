@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <iostream>
 #include <string>
+#include "Logger.h"
 using std::string;
 
 SocketIO::SocketIO(int fd)
@@ -82,7 +83,7 @@ int SocketIO::writen(const char *buf,int len){
                 // 非阻塞写，暂时写不了
                 return len - left; // 或者返回 0
             } else {
-                perror("writen error -1");
+                LOG_ERROR("Writen ERROR");
                 return -1;
             }
         } else if(ret == 0){

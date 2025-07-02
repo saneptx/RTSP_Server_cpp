@@ -29,7 +29,7 @@ MultiThreadEventLoop::MultiThreadEventLoop(const std::string& ip, unsigned short
 
 MultiThreadEventLoop::~MultiThreadEventLoop() {
     LOG_INFO("MultiThreadEventLoop destructor called");
-    // stop();
+    stop();
 }
 
 void MultiThreadEventLoop::start() {

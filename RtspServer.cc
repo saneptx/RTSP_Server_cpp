@@ -4,10 +4,6 @@
 #include "reactor/cpp11_compat.h"
 #include "reactor/Logger.h"
 
-using std::cout;
-using std::endl;
-using std::cerr;
-
 std::unique_ptr<MultiThreadEventLoop> g_server;
 
 void signalHandler(int sig) {
@@ -15,7 +11,6 @@ void signalHandler(int sig) {
     if (g_server) {
         g_server->stop();
     }
-    exit(0);
 }
 
 int main() {

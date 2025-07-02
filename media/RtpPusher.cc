@@ -60,22 +60,22 @@ void RtpPusher::start() {
     if (_useUdp) {
         if (!_videoRtpConn || !_audioRtpConn) {
             LOG_ERROR("UDP connections not initialized");
-            // std::cerr << "[RtpPusher] UDP connections not initialized" << std::endl;
             return;
         }
     } else {
         if (!_conn) {
             LOG_ERROR("_conn == nullptr");
-            // std::cerr << "[RtpPusher] _conn == nullptr" << std::endl;
             return;
         }
     }
-    // 根据传输模式选择定时器
     if (_useUdp) {
         _timerId = _videoRtpConn->addPeriodicTimer(0, 1, [this, startTime, nextVideoTime, nextAudioTime]() mutable {
             auto now = steady_clock::now();
             if(!_running){
-                _videoRtpConn->removeTimer(_timerId);
+                if (this->_timerId != 0) {
+                    _videoRtpConn->removeTimer(_timerId);
+                    this->_timerId = 0;
+                }
                 return;
             }
             // 先处理视频帧
@@ -138,12 +138,10 @@ void RtpPusher::start() {
                     }
                 } else if (status == ReadStatus::Eof) {
                     LOG_INFO("H264 Read completed.");
-                    // std::cout << "[RtpPusher] H264 Read completed." << std::endl;
                     _running = false;
                     return;
                 } else {
                     LOG_ERROR("H264 read error.");
-                    // std::cout << "[RtpPusher] H264 read error." << std::endl;
                     _running = false;
                     return;
                 }
@@ -158,22 +156,24 @@ void RtpPusher::start() {
                     nextAudioTime += milliseconds(21);
                 } else if (status == ReadStatus::Eof) {
                     LOG_INFO("AAC Read completed.");
-                    // std::cout << "[RtpPusher] AAC Read completed." << std::endl;
                     _running = false;
                     return;
                 } else {
                     LOG_ERROR("AAC read error.");
-                    // std::cout << "[RtpPusher] AAC read error." << std::endl;
                     _running = false;
                     return;
                 }
             }
         });
     } else {
-        _timerId = _conn->addPeriodicTimer(0, 1, [this, startTime, nextVideoTime, nextAudioTime]() mutable {
+        this->_timerId = _conn->addPeriodicTimer(0, 1, [this, startTime, nextVideoTime, nextAudioTime]() mutable {
+            // if (this->_timerId == 0) return; // 已经移除，不再做任何事
             auto now = steady_clock::now();
             if(!_running){
-                _conn->removeTimer(_timerId);
+                if (this->_timerId != 0) {
+                    _conn->removeTimer(_timerId);
+                    this->_timerId = 0;
+                }
                 return;
             }
             // 先处理视频帧
@@ -199,12 +199,10 @@ void RtpPusher::start() {
                     }
                 } else if (status == ReadStatus::Eof) {
                     LOG_INFO("H264 Read completed.");
-                    // std::cout << "[RtpPusher] H264 Read completed." << std::endl;
                     _running = false;
                     return;
                 } else {
                     LOG_ERROR("H264 read error.");
-                    // std::cout << "[RtpPusher] H264 read error." << std::endl;
                     _running = false;
                     return;
                 }
@@ -219,12 +217,10 @@ void RtpPusher::start() {
                     nextAudioTime += milliseconds(21);
                 } else if (status == ReadStatus::Eof) {
                     LOG_INFO("AAC Read completed.");
-                    // std::cout << "[RtpPusher] AAC Read completed." << std::endl;
                     _running = false;
                     return;
                 } else {
                     LOG_ERROR("AAC read error.");
-                    // std::cout << "[RtpPusher] AAC read error." << std::endl;
                     _running = false;
                     return;
                 }
@@ -235,10 +231,13 @@ void RtpPusher::start() {
 
 void RtpPusher::stop(){
     _running = false;
-    if (_useUdp) {
-        _videoRtpConn->removeTimer(_timerId);
-    } else if (_conn) {
-        _conn->removeTimer(_timerId);
+    if (_timerId != 0) {
+        if (_useUdp) {
+            _videoRtpConn->removeTimer(_timerId);
+        } else if (_conn) {
+            _conn->removeTimer(_timerId);
+        }
+        _timerId = 0;
     }
 }
 
@@ -249,7 +248,6 @@ void RtpPusher::sendH264Frame(const std::vector<uint8_t>& nalu) {
         std::vector<uint8_t> packet = header;
         packet.insert(packet.end(), nalu.begin(), nalu.end());
         uint8_t prefix[] = { '$', 0, uint8_t(packet.size() >> 8), uint8_t(packet.size() & 0xFF) };
-        // std::cout << "[RtpPusher] Send H264 RTP packet, size=" << packet.size() << ", seq=" << _seqVideo-1 << std::endl;
         _conn->sendInLoop(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
     } else {
         uint8_t nal_header = nalu[0];
@@ -269,7 +267,6 @@ void RtpPusher::sendH264Frame(const std::vector<uint8_t>& nalu) {
             packet.insert(packet.end(), payload.begin(), payload.end());
 
             uint8_t prefix[] = { '$', 0, uint8_t(packet.size() >> 8), uint8_t(packet.size() & 0xFF) };
-            // std::cout << "[RtpPusher] Send H264 RTP FU-A packet, size=" << packet.size() << ", seq=" << _seqVideo-1 << (isLast ? " [LAST]" : "") << std::endl;
             _conn->sendInLoop(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
 
             pos += len;
@@ -298,7 +295,6 @@ void RtpPusher::sendAacFrame(const std::vector<uint8_t>& aac) {
     packet.insert(packet.end(), payload.begin(), payload.end());
 
     uint8_t prefix[] = { '$', 2, uint8_t(packet.size() >> 8), uint8_t(packet.size() & 0xFF) };
-    // std::cout << "[RtpPusher] Send AAC RTP packet, size=" << packet.size() << ", seq=" << _seqAudio-1 << std::endl;
     _conn->sendInLoop(std::string((char*)prefix, 4) + std::string((char*)packet.data(), packet.size()));
 }
 

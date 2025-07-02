@@ -84,8 +84,7 @@ string TcpConnection::reciveRtspRequest(){
     } else if (n == 0) {
         LOG_DEBUG("Connection closed by peer on fd %d", getFd());
         // 对端关闭
-        // return "";
-        // handleCloseCallback();
+        return "";
     }
     LOG_DEBUG("Received RTSP request from fd %d: %d bytes", getFd(), n);
     _recvBuffer.append(temp, n);//每次从 socket 读取数据，append 到 _recvBuffer。

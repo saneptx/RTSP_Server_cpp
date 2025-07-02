@@ -43,6 +43,7 @@ private:
     std::atomic<size_t> _nextLoopIndex;  // 下一个要使用的EventLoop索引
     
     std::atomic<bool> _running;
+
 };
 
 #endif 
