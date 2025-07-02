@@ -15,6 +15,7 @@ public:
     string ip() const;
     unsigned short port() const;
     const struct sockaddr_in *getInetAddrPtr() const;
+    string toString();
 private:
     struct sockaddr_in _addr;
 };

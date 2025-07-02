@@ -26,3 +26,6 @@ unsigned short InetAddress::port() const{
 const struct sockaddr_in *InetAddress::getInetAddrPtr() const{
     return &_addr;
 }
+string InetAddress::toString(){
+    return ip() + ":" + std::to_string(port());
+}

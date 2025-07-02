@@ -11,7 +11,7 @@ Socket::Socket(){
         perror("socket");
         return;
     }
-
+    setNoblock();
 }
 Socket::Socket(int fd)
 :_fd(fd){

@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wextra -O2 -pthread
 INCLUDES = -I.
-LIBS = -lpthread
+LIBS = -lpthread -llog4cpp
 
 # 源文件
 REACTOR_SOURCES = $(wildcard reactor/*.cc)

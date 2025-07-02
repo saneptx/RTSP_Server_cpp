@@ -1,6 +1,7 @@
 #include "AacFileReader.h"
 #include <iostream>
 #include <string.h>
+#include "../reactor/Logger.h"
 
 AacFileReader::AacFileReader(const std::string& filepath) {
     _file.open(filepath, std::ios::binary);
@@ -15,10 +16,12 @@ AacFileReader::~AacFileReader() {
 ReadStatus AacFileReader::readFrame(std::vector<uint8_t>& outFrame) {
     outFrame.clear();
     if (!_file.is_open() ){
-        std::cout << "Aac file open failed!" << std::endl;
+        LOG_ERROR("Aac file open failed!");
+        // std::cout << "Aac file open failed!" << std::endl;
         return ReadStatus::FileError;
     }else if(_file.eof()){
-        std::cout << "Aac file read eof!" << std::endl;
+        LOG_INFO("Aac file read eof!");
+        // std::cout << "Aac file read eof!" << std::endl;
         return ReadStatus::Eof;
     }
 
@@ -38,7 +41,8 @@ ReadStatus AacFileReader::readFrame(std::vector<uint8_t>& outFrame) {
     outFrame.resize(frameLength);
     ::memcpy(outFrame.data(), header, 7); // 包括 ADTS 头
     if (!_file.read(reinterpret_cast<char*>(outFrame.data() + 7), frameLength - 7)) {
-        std::cout << "Aac file read failed!" << std::endl;
+        // std::cout << "Aac file read failed!" << std::endl;
+        LOG_DEBUG("Aac file read failed!");
         outFrame.clear();
         return ReadStatus::NoData;
     }

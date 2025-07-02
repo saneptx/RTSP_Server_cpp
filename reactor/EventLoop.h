@@ -46,11 +46,11 @@ public:
     void addEpollWriteFd(int fd);
     void delEpollWriteFd(int fd);
     
-    // 新增：线程安全的方法
+    
     bool isInLoopThread() const { return _threadId == std::this_thread::get_id(); }
     void assertInLoopThread();
     
-    // 新增：连接管理
+    
     void addConnection(const TcpConnectionPtr& conn);
     void removeConnection(const TcpConnectionPtr& conn);
     
@@ -68,7 +68,6 @@ private:
     bool _isLooping;
     Acceptor &_acceptor;
     map<int,TcpConnectionPtr> _conns;
-    mutex _connsMutex;  // 保护连接映射的互斥锁
 
     std::function<void(int)> _onNewConnectionCb;
     TcpConnectionCallback _onMessageCb;

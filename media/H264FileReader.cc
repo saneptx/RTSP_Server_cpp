@@ -1,5 +1,6 @@
 #include "H264FileReader.h"
 #include <iostream>
+#include "../reactor/Logger.h"
 
 H264FileReader::H264FileReader(const std::string& filepath) {
     _file.open(filepath, std::ios::binary);
@@ -18,10 +19,12 @@ bool H264FileReader::isStartCode(const uint8_t* p, size_t len) {
 
 ReadStatus H264FileReader::readFrame(std::vector<uint8_t>& outFrame) {
     if (!_file.is_open()){
-        std::cout<<"H.264 file open failed!"<<std::endl;
+        LOG_ERROR("H.264 file open failed!");
+        // std::cout<<"H.264 file open failed!"<<std::endl;
         return ReadStatus::FileError;
     }else if(_file.eof()){
-        std::cout<<"H.264 file read eof!"<<std::endl;
+        LOG_INFO("H.264 file read eof!");
+        // std::cout<<"H.264 file read eof!"<<std::endl;
         return ReadStatus::Eof;
     }
 
@@ -54,7 +57,8 @@ ReadStatus H264FileReader::readFrame(std::vector<uint8_t>& outFrame) {
     }
 
     if (buffer.empty()){ 
-        std::cout<<"H.264 file read failed!"<<std::endl;
+        LOG_DEBUG("H.264 file read failed!");
+        // std::cout<<"H.264 file read failed!"<<std::endl;
         return ReadStatus::NoData;
     }
     outFrame = std::move(buffer);

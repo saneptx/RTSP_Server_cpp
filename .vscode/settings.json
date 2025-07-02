@@ -59,6 +59,9 @@
         "bitset": "cpp",
         "cstring": "cpp",
         "regex": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "strstream": "cpp",
+        "set": "cpp",
+        "cinttypes": "cpp"
     }
 }

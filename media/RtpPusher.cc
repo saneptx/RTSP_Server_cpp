@@ -2,6 +2,7 @@
 #include <functional>
 #include <chrono>
 #include <iostream>
+#include "../reactor/Logger.h"
 
 static std::vector<uint8_t> buildRtpHeader(uint16_t seq, uint32_t timestamp, uint32_t ssrc, uint8_t pt, bool marker) {
     std::vector<uint8_t> h(12);
@@ -58,12 +59,14 @@ void RtpPusher::start() {
     auto nextAudioTime = startTime;
     if (_useUdp) {
         if (!_videoRtpConn || !_audioRtpConn) {
-            std::cerr << "[RtpPusher] UDP connections not initialized" << std::endl;
+            LOG_ERROR("UDP connections not initialized");
+            // std::cerr << "[RtpPusher] UDP connections not initialized" << std::endl;
             return;
         }
     } else {
         if (!_conn) {
-            std::cerr << "[RtpPusher] _conn == nullptr" << std::endl;
+            LOG_ERROR("_conn == nullptr");
+            // std::cerr << "[RtpPusher] _conn == nullptr" << std::endl;
             return;
         }
     }
@@ -134,11 +137,13 @@ void RtpPusher::start() {
                         nextVideoTime += milliseconds(40);
                     }
                 } else if (status == ReadStatus::Eof) {
-                    std::cout << "[RtpPusher] H264 Read completed." << std::endl;
+                    LOG_INFO("H264 Read completed.");
+                    // std::cout << "[RtpPusher] H264 Read completed." << std::endl;
                     _running = false;
                     return;
                 } else {
-                    std::cout << "[RtpPusher] H264 read error." << std::endl;
+                    LOG_ERROR("H264 read error.");
+                    // std::cout << "[RtpPusher] H264 read error." << std::endl;
                     _running = false;
                     return;
                 }
@@ -152,11 +157,13 @@ void RtpPusher::start() {
                     _timestampAudio += 1920;
                     nextAudioTime += milliseconds(21);
                 } else if (status == ReadStatus::Eof) {
-                    std::cout << "[RtpPusher] AAC Read completed." << std::endl;
+                    LOG_INFO("AAC Read completed.");
+                    // std::cout << "[RtpPusher] AAC Read completed." << std::endl;
                     _running = false;
                     return;
                 } else {
-                    std::cout << "[RtpPusher] AAC read error." << std::endl;
+                    LOG_ERROR("AAC read error.");
+                    // std::cout << "[RtpPusher] AAC read error." << std::endl;
                     _running = false;
                     return;
                 }
@@ -191,11 +198,13 @@ void RtpPusher::start() {
                         nextVideoTime += milliseconds(40);
                     }
                 } else if (status == ReadStatus::Eof) {
-                    std::cout << "[RtpPusher] H264 Read completed." << std::endl;
+                    LOG_INFO("H264 Read completed.");
+                    // std::cout << "[RtpPusher] H264 Read completed." << std::endl;
                     _running = false;
                     return;
                 } else {
-                    std::cout << "[RtpPusher] H264 read error." << std::endl;
+                    LOG_ERROR("H264 read error.");
+                    // std::cout << "[RtpPusher] H264 read error." << std::endl;
                     _running = false;
                     return;
                 }
@@ -209,11 +218,13 @@ void RtpPusher::start() {
                     _timestampAudio += 1920;
                     nextAudioTime += milliseconds(21);
                 } else if (status == ReadStatus::Eof) {
-                    std::cout << "[RtpPusher] AAC Read completed." << std::endl;
+                    LOG_INFO("AAC Read completed.");
+                    // std::cout << "[RtpPusher] AAC Read completed." << std::endl;
                     _running = false;
                     return;
                 } else {
-                    std::cout << "[RtpPusher] AAC read error." << std::endl;
+                    LOG_ERROR("AAC read error.");
+                    // std::cout << "[RtpPusher] AAC read error." << std::endl;
                     _running = false;
                     return;
                 }

@@ -4,6 +4,7 @@
 #include <atomic>
 #include <thread>
 #include <regex>
+#include "../reactor/Logger.h"
 using std::cout;
 using std::endl;
 
@@ -28,36 +29,46 @@ RtspConnect::RtspConnect(TcpConnectionPtr connPtr,EventLoopPtr loopPtr)
 ,_aacFileReaderPtr(std::make_shared<AacFileReader>("data/1.aac"))
 // ,_rtspPusher(_connPtr,_h264FileReaderPtr,_aacFileReaderPtr)
 {
-    std::cout << "[RtspConnect] constructed, this=" << this << std::endl;
+    LOG_INFO("RtspConnect constructed - fd: %d, this: %p", connPtr->getFd(), this);
 }
+
 RtspConnect::~RtspConnect(){
-    std::cout << "[RtspConnect] destructed, this=" << this << std::endl;
+    LOG_INFO("RtspConnect destructed - fd: %d, this: %p", _connPtr->getFd(), this);
     releaseUdpPorts();
 }
+
 void RtspConnect::handleRtspConnect(){
 
     std::string rBuf = _connPtr->reciveRtspRequest();
     if (rBuf.empty()) {
-        // 没有完整请求，跳出或等待
+        LOG_DEBUG("No complete RTSP request received from fd: %d", _connPtr->getFd());
+        // 没有完整请求
         return;
     }
-    std::cout << "recv data from client:\n" << rBuf << std::endl;
+    LOG_INFO("Received RTSP request from fd %d: %zu bytes", _connPtr->getFd(), rBuf.size());
+    LOG_DEBUG("Request content:\n%s", rBuf.c_str());
 
     // 1. 解析请求
     parseRequest(rBuf);
 
     // 2. 路由处理
     if (method == "OPTIONS") {
+        LOG_DEBUG("Handling OPTIONS request, CSeq: %d", CSeq);
         handleOptions();
     } else if (method == "DESCRIBE") {
+        LOG_DEBUG("Handling DESCRIBE request, CSeq: %d", CSeq);
         handleDescribe();
     } else if (method == "SETUP") {
+        LOG_DEBUG("Handling SETUP request, CSeq: %d", CSeq);
         handleSetup();
     } else if (method == "PLAY") {
+        LOG_DEBUG("Handling PLAY request, CSeq: %d", CSeq);
         handlePlay();
     } else if (method == "TEARDOWN") {
+        LOG_DEBUG("Handling TEARDOWN request, CSeq: %d", CSeq);
         handleTeardown();
     } else {
+        LOG_WARN("Unknown RTSP method: %s, CSeq: %d", method.c_str(), CSeq);
         sendResponse("RTSP/1.0 400 Bad Request\r\nCSeq: " + std::to_string(CSeq) + "\r\n\r\n");
     }
     
@@ -69,14 +80,18 @@ void RtspConnect::releaseSession() {
         auto it = _sessionMap.find(currentSessionId);
         if (it != _sessionMap.end()) {
             if (it->second.useUdp) {
+                LOG_DEBUG("Releasing UDP ports for session: %s", currentSessionId.c_str());
                 releaseUdpPorts();
             }
             _sessionMap.erase(it);
-            std::cout << "Session " << currentSessionId << " released." << std::endl;
+            LOG_INFO("Session %s released", currentSessionId.c_str());
         }
         currentSessionId.clear();
     }
-    if(_rtspPusher) _rtspPusher->stop();
+    if(_rtspPusher) {
+        LOG_DEBUG("Stopping RTP pusher");
+        _rtspPusher->stop();
+    }
 }
 
 void RtspConnect::parseRequest(const std::string& rBuf) {
@@ -108,27 +123,33 @@ void RtspConnect::parseRequest(const std::string& rBuf) {
         if (i == 0 && h.find("RTSP/") != std::string::npos) {
             std::istringstream lss(h);
             lss >> method >> url >> version;
+            LOG_DEBUG("Parsed request line: %s %s %s", method.c_str(), url.c_str(), version.c_str());
         } else if (h.find("CSeq") != std::string::npos || h.find("CSEQ") != std::string::npos) {
             size_t pos = h.find(":");
             if (pos != std::string::npos)
                 CSeq = std::stoi(h.substr(pos + 1));
         } else if (h.find("Transport") != std::string::npos) {
             transport = h;
+            LOG_DEBUG("Transport header: %s", transport.c_str());
         } else if (h.find("Session:") != std::string::npos){
             size_t pos = h.find(":");
             if (pos != std::string::npos)
                 currentSessionId = h.substr(pos + 1);
             currentSessionId.erase(0, currentSessionId.find_first_not_of(" \t")); // 去空格
+            LOG_DEBUG("Session ID: %s", currentSessionId.c_str());
         }
         // 你可以继续处理其他header
     }
 }
+
 void RtspConnect::handleOptions() {
+    LOG_DEBUG("Sending OPTIONS response, CSeq: %d", CSeq);
     std::string response = "RTSP/1.0 200 OK\r\n"
                            "CSeq: " + std::to_string(CSeq) + "\r\n"
                            "Public: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE\r\n\r\n";
     sendResponse(response);
 }
+
 void RtspConnect::handleDescribe() {
     std::string localIP;
     size_t start = url.find("rtsp://");
@@ -139,6 +160,8 @@ void RtspConnect::handleDescribe() {
             localIP = url.substr(start, end - start);
         }
     }
+    LOG_DEBUG("Generating SDP for IP: %s", localIP.c_str());
+    
     // 示例 SDP 内容
     std::string sdp = "v=0\r\n"
                       "o=- 9" + std::to_string(time(NULL)) + " 1 IN IP4 " + localIP + "\r\n"
@@ -158,8 +181,10 @@ void RtspConnect::handleDescribe() {
                            "Content-Base: rtsp://" + localIP + "/\r\n"
                            "Content-Type: application/sdp\r\n"
                            "Content-Length: " + std::to_string(sdp.size()) + "\r\n\r\n" + sdp;
+    LOG_DEBUG("Sending DESCRIBE response, CSeq: %d, SDP size: %zu", CSeq, sdp.size());
     sendResponse(response);
 }
+
 void RtspConnect::handleSetup() {
     std::lock_guard<std::mutex> lock(_sessionMutex);
 
@@ -170,6 +195,7 @@ void RtspConnect::handleSetup() {
         session.sessionId = currentSessionId;
         session.clientIP = _connPtr->getPeerAddr().ip(); // 可以从socket获取
         _sessionMap[currentSessionId] = session;
+        LOG_INFO("Created new session: %s for client: %s", currentSessionId.c_str(), session.clientIP.c_str());
     }
 
     RtspSession& session = _sessionMap[currentSessionId];
@@ -190,6 +216,9 @@ void RtspConnect::handleSetup() {
         }else if(session.serverAudioPort == 0){
             session.serverAudioPort = basePort + 2;
         }
+        LOG_DEBUG("UDP transport detected, video port: %d, audio port: %d", 
+                 session.serverVideoPort, session.serverAudioPort);
+        
         // 解析客户端端口
         std::regex clientPortRegex(R"(client_port=(\d+)-(\d+))");
         std::smatch match;
@@ -202,14 +231,19 @@ void RtspConnect::handleSetup() {
                 session.clientVideoRtcpAddr = InetAddress(_connPtr->getPeerAddr().ip(), clientRtcpPort);
                 _videoRtpConn = std::make_shared<UdpConnection>(_connPtr->getLocalAddr().ip(),session.serverVideoPort,session.clientVideoRtpAddr,_loopPtr);//建立视频Rtp连接
                 _videoRtcpConn = std::make_shared<UdpConnection>(_connPtr->getLocalAddr().ip(),session.serverVideoPort+1,session.clientVideoRtcpAddr,_loopPtr);//建立视频Rtcp连接
+                LOG_DEBUG("Created video UDP connections - RTP: %d, RTCP: %d", session.serverVideoPort, session.serverVideoPort+1);
             } else if (url.find("track1") != std::string::npos) { // 音频
                 session.clientAudioRtpAddr = InetAddress(_connPtr->getPeerAddr().ip(), clientRtpPort);
                 session.clientAudioRtcpAddr = InetAddress(_connPtr->getPeerAddr().ip(), clientRtcpPort);
                 _audioRtpConn = std::make_shared<UdpConnection>(_connPtr->getLocalAddr().ip(),session.serverAudioPort,session.clientAudioRtpAddr,_loopPtr);//建立音频Rtp连接
                 _audioRtcpConn = std::make_shared<UdpConnection>(_connPtr->getLocalAddr().ip(),session.serverAudioPort+1,session.clientAudioRtcpAddr,_loopPtr);//建立音频Rtcp连接
+                LOG_DEBUG("Created audio UDP connections - RTP: %d, RTCP: %d", session.serverAudioPort, session.serverAudioPort+1);
             }
         }
+    } else {
+        LOG_DEBUG("TCP transport detected");
     }
+    
     std::string response;
     if (url.find("track0") != std::string::npos) { // 视频
         if (useUdp) {
@@ -247,19 +281,25 @@ void RtspConnect::handleSetup() {
         response = "RTSP/1.0 454 Session Not Found\r\n"
                    "CSeq: " + std::to_string(CSeq) + "\r\n\r\n";
     }
+    LOG_DEBUG("Sending SETUP response, CSeq: %d, session: %s", CSeq, currentSessionId.c_str());
     sendResponse(response);
 }
+
 void RtspConnect::handlePlay() {
     std::lock_guard<std::mutex> lock(_sessionMutex);
     auto it = _sessionMap.find(currentSessionId);
     if (it == _sessionMap.end()) {
+        LOG_WARN("Session not found: %s", currentSessionId.c_str());
         sendResponse("RTSP/1.0 454 Session Not Found\r\nCSeq: " + std::to_string(CSeq) + "\r\n\r\n");
         return;
     }
 
     it->second.isPlaying = true;
     it->second.lastActive = time(nullptr);
+    LOG_INFO("Starting playback for session: %s", currentSessionId.c_str());
+    
     if(it->second.useUdp){
+        LOG_DEBUG("Starting UDP RTP pusher");
         this->_rtspPusher = std::make_shared<RtpPusher>(_videoRtpConn,_audioRtpConn,_h264FileReaderPtr,_aacFileReaderPtr);
         _loopPtr->addEpollReadFd(_videoRtcpConn->getUdpFd());
         _loopPtr->addEpollReadFd(_audioRtcpConn->getUdpFd());
@@ -269,7 +309,7 @@ void RtspConnect::handlePlay() {
             char buffer[2048];
             int n = udpConn->recv(buffer);
             if (n <= 0) {
-                cout<<"[RTCP] No recv!"<<endl;
+                LOG_DEBUG("[RTCP] No data received for %s stream", streamType);
             }
             const uint8_t* packet = (const uint8_t*)buffer;
             size_t len = n;
@@ -288,8 +328,7 @@ void RtspConnect::handlePlay() {
                 if (pt == 201 && pos + 8 <= len) { // Receiver Report
                     // SSRC of the media source being reported on
                     uint32_t ssrc_source = ntohl(*(uint32_t*)&packet[pos + 8]);
-                    cout << "[RTCP] Received Receiver Report for " << streamType
-                         << " stream (SSRC: " << ssrc_source << ")" << endl;
+                    LOG_DEBUG("[RTCP] Received Receiver Report for %s stream (SSRC: %u)", streamType, ssrc_source);
                 }
                 
                 pos += packet_len_bytes;
@@ -303,51 +342,69 @@ void RtspConnect::handlePlay() {
             rtcpCallback(conn, "audio");
         });
     }else{
+        LOG_DEBUG("Starting TCP RTP pusher");
         this->_rtspPusher = std::make_shared<RtpPusher>(_connPtr,_h264FileReaderPtr,_aacFileReaderPtr);
     }
     
     std::string response = "RTSP/1.0 200 OK\r\n"
                            "CSeq: " + std::to_string(CSeq) + "\r\n"
                            "Session: " + currentSessionId + "\r\n\r\n";
+    LOG_DEBUG("Sending PLAY response, CSeq: %d", CSeq);
     sendResponse(response);
-    if(_rtspPusher) _rtspPusher->start(); 
+    if(_rtspPusher) {
+        LOG_INFO("Starting RTP pusher");
+        _rtspPusher->start(); 
+    }
 }
+
 void RtspConnect::handleTeardown() {
     std::lock_guard<std::mutex> lock(_sessionMutex);
 
     auto it = _sessionMap.find(currentSessionId);
     if (it != _sessionMap.end()) {
+        LOG_INFO("Teardown session: %s", currentSessionId.c_str());
         _sessionMap.erase(it);
     }
     std::string response = "RTSP/1.0 200 OK\r\n"
                            "CSeq: " + std::to_string(CSeq) + "\r\n\r\n";
+    LOG_DEBUG("Sending TEARDOWN response, CSeq: %d", CSeq);
     sendResponse(response);
-    if(_rtspPusher) _rtspPusher->stop();
+    if(_rtspPusher) {
+        LOG_DEBUG("Stopping RTP pusher");
+        _rtspPusher->stop();
+    }
 }
+
 void RtspConnect::sendResponse(const std::string& response) {
+    LOG_DEBUG("Sending RTSP response to fd %d: %zu bytes", _connPtr->getFd(), response.size());
+    LOG_DEBUG("Response content:\n%s", response.c_str());
     _connPtr->sendInLoop(response);
-    std::cout << "send data to client:\n" << response << std::endl;
 }
 
 string RtspConnect::generateSessionId() {
     static std::atomic<int> counter{0};
     std::stringstream ss;
     ss << std::hex << time(nullptr) << "_" << counter++;
-    return ss.str();
+    string sessionId = ss.str();
+    LOG_DEBUG("Generated session ID: %s", sessionId.c_str());
+    return sessionId;
 }
 
 int RtspConnect::allocateUdpPorts() {
     std::lock_guard<std::mutex> lock(portMutex);
     int basePort = nextUdpPort.fetch_add(2); // 分配6个端口：视频RTP/RTCP, 音频RTP/RTCP, 控制RTP/RTCP
+    LOG_DEBUG("Allocated UDP ports starting from: %d", basePort);
     return basePort;
 }
 
 void RtspConnect::releaseUdpPorts() {
     if(_videoRtcpConn){
+        LOG_DEBUG("Removing video RTCP connection from epoll");
         _loopPtr->delEpollReadFd(_videoRtcpConn->getUdpFd());
         _loopPtr->udpConns.erase(_videoRtcpConn->getUdpFd());
     }
     if(_audioRtcpConn){
+        LOG_DEBUG("Removing audio RTCP connection from epoll");
         _loopPtr->delEpollReadFd(_audioRtcpConn->getUdpFd());
         _loopPtr->udpConns.erase(_audioRtcpConn->getUdpFd());
     }
@@ -355,5 +412,5 @@ void RtspConnect::releaseUdpPorts() {
     _videoRtcpConn.reset();
     _audioRtpConn.reset();
     _audioRtcpConn.reset();
-
+    LOG_DEBUG("UDP connections released");
 }

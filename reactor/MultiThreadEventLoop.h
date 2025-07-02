@@ -9,6 +9,7 @@
 #include "Acceptor.h"
 #include "TcpConnection.h"
 #include "ThreadPool.h"
+#include "Logger.h"
 
 class MultiThreadEventLoop {
 public:
@@ -37,7 +38,6 @@ private:
     std::vector<std::unique_ptr<EventLoop>> _subLoops;  // 子线程的EventLoop
     size_t _threadNum;
 
-    // std::vector<std::thread> _threads;  // 工作线程
     ThreadPool _threadPool;
     
     std::atomic<size_t> _nextLoopIndex;  // 下一个要使用的EventLoop索引

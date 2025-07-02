@@ -2,12 +2,15 @@
 #include <sys/time.h>
 #include <string.h>
 #include <iostream>
+#include "Logger.h"
 
-TimerManager::TimerManager() {
-    _timerfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+TimerManager::TimerManager()
+:_timerfd(timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)){
+    LOG_DEBUG("TimeManager created with fd: %d", _timerfd);
 }
 
 TimerManager::~TimerManager() {
+    LOG_DEBUG("TimeManager destructor, closing fd: %d", _timerfd);
     if (_timerfd >= 0)
         close(_timerfd);
 }
@@ -25,6 +28,7 @@ uint64_t TimerManager::getNowMs() const {
 }
 
 TimerManager::TimerId TimerManager::addTimer(int delaySec, TimerCallback &&cb) {
+    LOG_DEBUG("Add once timer event");
     uint64_t expireTime = getNowMs() + delaySec;//计算到期执行时间单位毫秒
     TimerId timerId = _nextId++;
     _timers.emplace(timerId, std::make_pair(expireTime, Timer{0, std::move(cb)}));//添加到执行表，执行时间和回调函数
@@ -33,6 +37,7 @@ TimerManager::TimerId TimerManager::addTimer(int delaySec, TimerCallback &&cb) {
 }
 
 TimerManager::TimerId TimerManager::addPeriodicTimer(int delaySec, int intervalSec, TimerCallback &&cb) {
+    LOG_DEBUG("Add periodic timer event");
     uint64_t expireTime = getNowMs() + delaySec;
     TimerId timerId = _nextId++;
     _timers.emplace(timerId, std::make_pair(expireTime, Timer{intervalSec, std::move(cb)}));
@@ -41,6 +46,7 @@ TimerManager::TimerId TimerManager::addPeriodicTimer(int delaySec, int intervalS
 }
 
 void TimerManager::removeTimer(TimerId timerId) {
+    LOG_DEBUG("Remove timer");
     auto it = _timers.find(timerId);
     if (it != _timers.end()) {
         _timers.erase(it);
