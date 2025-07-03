@@ -83,8 +83,6 @@ string TcpConnection::reciveRtspRequest(){
         }
     } else if (n == 0) {
         LOG_DEBUG("Connection closed by peer on fd %d", getFd());
-        // closedFlag = true;
-        // handleCloseCallback();
         // 对端关闭
         return "";
     }
