@@ -109,7 +109,7 @@ void EventLoop::waitEpollFd(){
                 }
             }else if(fd == _eventor.getEvtfd()){//处理触发事件响应
                 if(events & EPOLLIN){
-                    // LOG_DEBUG("Eventor event on fd: %d", fd);
+                    LOG_DEBUG("Eventor event on fd: %d", fd);
                     _eventor.handleRead();
                 }
             }else if(fd == _timeMgr.getTimerFd()){//处理时间响应任务

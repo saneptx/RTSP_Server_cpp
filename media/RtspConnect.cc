@@ -88,6 +88,7 @@ void RtspConnect::releaseSession() {
         }
         currentSessionId.clear();
     }
+    
     if(_rtspPusher) {
         LOG_DEBUG("Stopping RTP pusher");
         _rtspPusher->stop();

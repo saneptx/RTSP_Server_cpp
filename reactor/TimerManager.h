@@ -39,7 +39,7 @@ private:
     int _timerfd;
     std::map<TimerId, std::pair<uint64_t, Timer>> _timers;  // key: expiration time
     void resetTimerfd();  // 设置下一个 timerfd 到期时间
-    TimerId _nextId = 0;  // 用于生成唯一的 TimerId
+    TimerId _nextId = 1;  // 用于生成唯一的 TimerId
 
     uint64_t getNowMs() const;
 };

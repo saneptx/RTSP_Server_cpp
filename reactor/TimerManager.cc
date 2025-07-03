@@ -37,10 +37,10 @@ TimerManager::TimerId TimerManager::addTimer(int delaySec, TimerCallback &&cb) {
 }
 
 TimerManager::TimerId TimerManager::addPeriodicTimer(int delaySec, int intervalSec, TimerCallback &&cb) {
-    LOG_DEBUG("Add periodic timer event");
     uint64_t expireTime = getNowMs() + delaySec;
     TimerId timerId = _nextId++;
     _timers.emplace(timerId, std::make_pair(expireTime, Timer{intervalSec, std::move(cb)}));
+    LOG_DEBUG("Add periodic timer event timerId: %d",timerId);
     resetTimerfd();
     return timerId;
 }
