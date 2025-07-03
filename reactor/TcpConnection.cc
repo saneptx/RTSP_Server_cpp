@@ -83,6 +83,8 @@ string TcpConnection::reciveRtspRequest(){
         }
     } else if (n == 0) {
         LOG_DEBUG("Connection closed by peer on fd %d", getFd());
+        // closedFlag = true;
+        // handleCloseCallback();
         // 对端关闭
         return "";
     }
@@ -137,7 +139,7 @@ InetAddress TcpConnection::getPeerAddr(){
 bool TcpConnection::isClosed() const{
     char buf[10]={0};
     int ret = ::recv(_sock.fd(),buf,sizeof(buf),MSG_PEEK);
-
+    
     return (0 == ret);
 }
 

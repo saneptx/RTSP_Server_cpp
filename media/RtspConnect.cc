@@ -96,6 +96,7 @@ void RtspConnect::releaseSession() {
 }
 
 void RtspConnect::parseRequest(const std::string& rBuf) {
+    LOG_INFO("parseRequest");
     std::istringstream iss(rBuf);
     std::string line;
     std::vector<std::string> headers;
