@@ -13,7 +13,7 @@ std::unordered_map<std::string, RtspSession> RtspConnect::_sessionMap;
 std::mutex RtspConnect::_sessionMutex;
 
 // 用于端口分配的静态变量
-static std::atomic<int> nextUdpPort{8889};
+static std::atomic<int> nextUdpPort{10000};
 static std::mutex portMutex;
 
 RtspConnect::RtspConnect(TcpConnectionPtr connPtr,EventLoopPtr loopPtr)

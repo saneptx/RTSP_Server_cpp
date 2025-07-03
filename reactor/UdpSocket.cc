@@ -17,6 +17,7 @@ UdpSocket::UdpSocket(const string &ip,unsigned short port,InetAddress clientAddr
     }
     bind();
     setNoblock();
+    setReuseAddr();
 }
 
 UdpSocket::UdpSocket(int fd) : _fd(fd) {

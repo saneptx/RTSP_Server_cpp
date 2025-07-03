@@ -93,5 +93,5 @@ int SocketIO::writen(const char *buf,int len){
             left -= ret;
         }
     }
-    return len - left;
+    return len - left;//返回实际写入的字节数
 }

@@ -146,7 +146,6 @@ void EventLoop::handleMessage(int fd){
     auto itTcp = _conns.find(fd);
     auto itUdp = udpConns.find(fd);
     if(itTcp != _conns.end()){
-        // itTcp->second->handleMessageCallback();
         if(itTcp->second->isClosed()){
             LOG_DEBUG("Connection fd: %d is closed, handling close callback", fd);
             itTcp->second->handleCloseCallback();
