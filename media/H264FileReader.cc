@@ -20,35 +20,27 @@ bool H264FileReader::isStartCode(const uint8_t* p, size_t len) {
 ReadStatus H264FileReader::readFrame(std::vector<uint8_t>& outFrame) {
     if (!_file.is_open()){
         LOG_ERROR("H.264 file open failed!");
-        // std::cout<<"H.264 file open failed!"<<std::endl;
         return ReadStatus::FileError;
-    }else if(_file.eof()){
-        LOG_INFO("H.264 file read eof!");
-        // std::cout<<"H.264 file read eof!"<<std::endl;
-        return ReadStatus::Eof;
     }
 
     std::vector<uint8_t> buffer;
     uint8_t byte;
-    // size_t startCodeLen = 0;
 
-    // 1. 跳过文件开头的起始码
+    // 跳过文件开头的起始码
     while (_file.read((char*)&byte, 1)) {
         buffer.push_back(byte);
         if (isStartCode(buffer.data(), buffer.size())) {
-            // startCodeLen = (buffer.size() >= 4 && buffer[0] == 0x00 && buffer[1] == 0x00 && buffer[2] == 0x00 && buffer[3] == 0x01) ? 4 : 3;
             buffer.clear();
             break;
         }
     }
 
-    // 2. 读取NALU内容，直到下一个起始码
+    // 读取NALU内容，直到下一个起始码
     while (_file.read((char*)&byte, 1)) {
         buffer.push_back(byte);
         size_t sz = buffer.size();
         if ((sz >= 4 && isStartCode(&buffer[sz - 4], 4)) ||
             (sz >= 3 && isStartCode(&buffer[sz - 3], 3))) {
-            // 找到下一个起始码，回退到起始码前
             size_t codeLen = (sz >= 4 && isStartCode(&buffer[sz - 4], 4)) ? 4 : 3;
             buffer.resize(sz - codeLen);
             _file.seekg(-static_cast<int>(codeLen), std::ios::cur);
@@ -56,9 +48,12 @@ ReadStatus H264FileReader::readFrame(std::vector<uint8_t>& outFrame) {
         }
     }
 
-    if (buffer.empty()){ 
+    if (buffer.empty()) {
+        if (_file.eof()) {
+            LOG_INFO("H.264 file read eof!");
+            return ReadStatus::Eof;
+        }
         LOG_DEBUG("H.264 file read failed!");
-        // std::cout<<"H.264 file read failed!"<<std::endl;
         return ReadStatus::NoData;
     }
     outFrame = std::move(buffer);

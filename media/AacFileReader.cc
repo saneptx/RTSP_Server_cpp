@@ -15,18 +15,19 @@ AacFileReader::~AacFileReader() {
 
 ReadStatus AacFileReader::readFrame(std::vector<uint8_t>& outFrame) {
     outFrame.clear();
-    if (!_file.is_open() ){
+    if (!_file.is_open()) {
         LOG_ERROR("Aac file open failed!");
-        // std::cout << "Aac file open failed!" << std::endl;
         return ReadStatus::FileError;
-    }else if(_file.eof()){
-        LOG_INFO("Aac file read eof!");
-        // std::cout << "Aac file read eof!" << std::endl;
-        return ReadStatus::Eof;
     }
 
     uint8_t header[7];
-    if (!_file.read(reinterpret_cast<char*>(header), 7)) return ReadStatus::FileError;
+    if (!_file.read(reinterpret_cast<char*>(header), 7)) {
+        if (_file.eof()) {
+            LOG_INFO("Aac file read eof!");
+            return ReadStatus::Eof;
+        }
+        return ReadStatus::FileError;
+    }
 
     // 校验 ADTS 同步头（12bit）
     if (header[0] != 0xFF || (header[1] & 0xF0) != 0xF0) return ReadStatus::FileError;
@@ -41,7 +42,11 @@ ReadStatus AacFileReader::readFrame(std::vector<uint8_t>& outFrame) {
     outFrame.resize(frameLength);
     ::memcpy(outFrame.data(), header, 7); // 包括 ADTS 头
     if (!_file.read(reinterpret_cast<char*>(outFrame.data() + 7), frameLength - 7)) {
-        // std::cout << "Aac file read failed!" << std::endl;
+        if (_file.eof()) {
+            LOG_INFO("Aac file read eof!");
+            outFrame.clear();
+            return ReadStatus::Eof;
+        }
         LOG_DEBUG("Aac file read failed!");
         outFrame.clear();
         return ReadStatus::NoData;
