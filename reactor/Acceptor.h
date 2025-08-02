@@ -1,5 +1,5 @@
 #ifndef __ACCEPTOR_H__
-#define __ADDEPTOR_H__
+#define __ACCEPTOR_H__
 
 #include "Socket.h"
 #include "InetAddress.h"
