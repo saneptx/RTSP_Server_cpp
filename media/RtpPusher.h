@@ -29,7 +29,6 @@ public:
 private:
     void sendH264Frame(const std::vector<uint8_t>& nalu);
     void sendAacFrame(const std::vector<uint8_t>& aac);
-    void sendLoop();
     
     void sendH264FrameUdp(const std::vector<uint8_t>& nalu);
     void sendAacFrameUdp(const std::vector<uint8_t>& aac);
